@@ -61,6 +61,8 @@ const MIGRATIONS: string[] = [
         created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     );
     `,
+    // 2 — staff note on drops
+    `ALTER TABLE drops ADD COLUMN staff_note TEXT;`,
 ];
 
 export function runMigrations(db: Database.Database): void {

@@ -59,14 +59,20 @@ export function buildAcceptedEmbed(drop: DropRow, staffUser: User): EmbedBuilder
         .setTimestamp();
 }
 
-export function buildRejectedEmbed(drop: DropRow, staffUser: User): EmbedBuilder {
-    return new EmbedBuilder()
+export function buildRejectedEmbed(drop: DropRow, staffUser: User, reason?: string): EmbedBuilder {
+    const embed = new EmbedBuilder()
         .setTitle('Drop Rejected')
         .setColor(0xCC2222)
         .addFields(
             { name: 'Item', value: drop.item_name, inline: true },
-            { name: 'GP Value', value: `${drop.gp_value.toLocaleString()} GP`, inline: true },
-        )
+            { name: 'GP Value', value: drop.gp_value > 0 ? `${drop.gp_value.toLocaleString()} GP` : 'Override', inline: true },
+        );
+
+    if (reason) {
+        embed.addFields({ name: 'Reason', value: reason, inline: false });
+    }
+
+    return embed
         .setFooter({ text: `Rejected by ${staffUser.username} • Drop ID: ${drop.id}` })
         .setTimestamp();
 }
