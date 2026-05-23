@@ -18,7 +18,7 @@ import { getAcceptedDropsForUser } from '../database/queries/drops';
 import { getItemMapping, searchItems, findItemById } from '../services/osrsApi';
 import { checkAndNotifyRankUp, forceSetRank } from '../services/rankService';
 import { config } from '../config';
-import { hasClanRole } from '../utils/permissions';
+import { hasAdminRole } from '../utils/permissions';
 
 export const admin: Command = {
     data: new SlashCommandBuilder()
@@ -97,7 +97,7 @@ export const admin: Command = {
         ) as SlashCommandBuilder,
 
     async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-        if (!hasClanRole(interaction)) {
+        if (!hasAdminRole(interaction)) {
             await interaction.reply({ content: 'You do not have permission to use admin commands.', flags: MessageFlags.Ephemeral });
             return;
         }

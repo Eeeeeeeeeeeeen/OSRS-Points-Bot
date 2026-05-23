@@ -2,15 +2,14 @@ import { ButtonInteraction, GuildMember, MessageFlags } from 'discord.js';
 import { applyRankUp } from '../../services/rankService';
 import { getRankTierByRoleId } from '../../database/queries/ranks';
 import { buildRankUpApprovedEmbed } from '../../embeds/rankUpEmbed';
-import { config } from '../../config';
-import { hasClanRole } from '../../utils/permissions';
+import { hasStaffRole } from '../../utils/permissions';
 
 export async function handleApproveRankup(
     interaction: ButtonInteraction,
     discordId: string,
     roleId: string,
 ): Promise<void> {
-    if (!hasClanRole(interaction)) {
+    if (!hasStaffRole(interaction)) {
         await interaction.reply({ content: 'You do not have permission to do this.', flags: MessageFlags.Ephemeral });
         return;
     }
