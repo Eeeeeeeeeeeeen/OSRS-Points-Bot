@@ -19,6 +19,7 @@ export interface DropRow {
     review_channel_id: string | null;
     review_message_id: string | null;
     staff_id: string | null;
+    staff_note: string | null;
     submitted_at: number;
     reviewed_at: number | null;
 }

@@ -6,6 +6,7 @@ import { handleModifyDrop } from '../interactions/buttons/modifyDrop';
 import { handleApproveRankup } from '../interactions/buttons/approveRankup';
 import { handleConfirmRemoveDrop, handleCancelRemoveDrop } from '../interactions/buttons/confirmRemoveDrop';
 import { handleModifyDropSubmit } from '../interactions/modals/modifyDropSubmit';
+import { handleRejectDropSubmit } from '../interactions/modals/rejectDropSubmit';
 import { handleSelectDropToRemove } from '../interactions/selects/selectDropToRemove';
 
 export function registerInteractionCreate(client: Client, commands: Map<string, Command>): void {
@@ -69,6 +70,8 @@ export function registerInteractionCreate(client: Client, commands: Map<string, 
 
                 if (action === 'modify_drop_submit') {
                     await handleModifyDropSubmit(interaction, parseInt(parts[1], 10));
+                } else if (action === 'reject_drop_submit') {
+                    await handleRejectDropSubmit(interaction, parseInt(parts[1], 10));
                 }
                 return;
             }

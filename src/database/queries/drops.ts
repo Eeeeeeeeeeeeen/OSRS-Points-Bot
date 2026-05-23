@@ -38,10 +38,10 @@ export function updateDropReviewMessage(dropId: number, channelId: string, messa
     `).run(channelId, messageId, dropId);
 }
 
-export function updateDropStatus(dropId: number, status: 'accepted' | 'rejected', staffId: string): void {
+export function updateDropStatus(dropId: number, status: 'accepted' | 'rejected', staffId: string, note?: string): void {
     getDb().prepare(`
-        UPDATE drops SET status = ?, staff_id = ?, reviewed_at = (unixepoch() * 1000) WHERE id = ?
-    `).run(status, staffId, dropId);
+        UPDATE drops SET status = ?, staff_id = ?, staff_note = ?, reviewed_at = (unixepoch() * 1000) WHERE id = ?
+    `).run(status, staffId, note ?? null, dropId);
 }
 
 export function updateDrop(dropId: number, fields: { itemName: string; gpValue: number; awardedPoints: number }): void {

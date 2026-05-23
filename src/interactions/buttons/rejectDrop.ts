@@ -1,6 +1,12 @@
-import { ButtonInteraction, MessageFlags } from 'discord.js';
-import { getDropById, updateDropStatus } from '../../database/queries/drops';
-import { buildRejectedEmbed } from '../../embeds/reviewEmbed';
+import {
+    ButtonInteraction,
+    MessageFlags,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle,
+    ActionRowBuilder,
+} from 'discord.js';
+import { getDropById } from '../../database/queries/drops';
 import { hasStaffRole } from '../../utils/permissions';
 
 export async function handleRejectDrop(interaction: ButtonInteraction, dropId: number): Promise<void> {
@@ -9,26 +15,27 @@ export async function handleRejectDrop(interaction: ButtonInteraction, dropId: n
         return;
     }
 
-    await interaction.deferUpdate();
-
     const drop = getDropById(dropId);
     if (!drop || drop.status !== 'pending') {
-        await interaction.followUp({ content: 'This drop is no longer pending.', flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: 'This drop is no longer pending.', flags: MessageFlags.Ephemeral });
         return;
     }
 
-    updateDropStatus(dropId, 'rejected', interaction.user.id);
+    // showModal() IS the response — do not deferUpdate/reply before this
+    const modal = new ModalBuilder()
+        .setCustomId(`reject_drop_submit:${dropId}`)
+        .setTitle('Reject Drop');
 
-    await interaction.message.edit({
-        embeds: [buildRejectedEmbed(drop, interaction.user)],
-        components: [],
-    });
+    modal.addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder()
+                .setCustomId('reason')
+                .setLabel('Reason for rejection')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(false)
+                .setPlaceholder('Optional — will be shown in the log and sent to the submitter'),
+        ),
+    );
 
-    try {
-        const submitter = await interaction.guild!.members.fetch(drop.submitter_id);
-        await submitter.send(`Your drop of **${drop.item_name}** was rejected.`);
-    } catch {
-        // DMs disabled — ignore
-    }
+    await interaction.showModal(modal);
 }
-
