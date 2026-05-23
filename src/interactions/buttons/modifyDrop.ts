@@ -7,11 +7,10 @@ import {
     ActionRowBuilder,
 } from 'discord.js';
 import { getDropById } from '../../database/queries/drops';
-import { config } from '../../config';
-import { hasClanRole } from '../../utils/permissions';
+import { hasStaffRole } from '../../utils/permissions';
 
 export async function handleModifyDrop(interaction: ButtonInteraction, dropId: number): Promise<void> {
-    if (!hasClanRole(interaction)) {
+    if (!hasStaffRole(interaction)) {
         await interaction.reply({ content: 'You do not have permission to do this.', flags: MessageFlags.Ephemeral });
         return;
     }

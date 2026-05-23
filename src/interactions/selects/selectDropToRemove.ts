@@ -1,9 +1,9 @@
 import { StringSelectMenuInteraction, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
 import { getDropById, getDropRecipients } from '../../database/queries/drops';
-import { hasClanRole } from '../../utils/permissions';
+import { hasStaffRole } from '../../utils/permissions';
 
 export async function handleSelectDropToRemove(interaction: StringSelectMenuInteraction): Promise<void> {
-    if (!hasClanRole(interaction)) {
+    if (!hasStaffRole(interaction)) {
         await interaction.reply({ content: 'You do not have permission to do this.', flags: MessageFlags.Ephemeral });
         return;
     }

@@ -6,10 +6,10 @@ import { checkAndNotifyRankUp } from '../../services/rankService';
 import { buildAcceptedEmbed } from '../../embeds/reviewEmbed';
 import { buildDropLogEmbed } from '../../embeds/dropLogEmbed';
 import { config } from '../../config';
-import { hasClanRole } from '../../utils/permissions';
+import { hasStaffRole } from '../../utils/permissions';
 
 export async function handleAcceptDrop(interaction: ButtonInteraction, dropId: number): Promise<void> {
-    if (!hasClanRole(interaction)) {
+    if (!hasStaffRole(interaction)) {
         await interaction.reply({ content: 'You do not have permission to do this.', flags: MessageFlags.Ephemeral });
         return;
     }

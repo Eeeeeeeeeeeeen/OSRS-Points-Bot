@@ -1,11 +1,10 @@
 import { ButtonInteraction, MessageFlags } from 'discord.js';
 import { getDropById, updateDropStatus } from '../../database/queries/drops';
 import { buildRejectedEmbed } from '../../embeds/reviewEmbed';
-import { config } from '../../config';
-import { hasClanRole } from '../../utils/permissions';
+import { hasStaffRole } from '../../utils/permissions';
 
 export async function handleRejectDrop(interaction: ButtonInteraction, dropId: number): Promise<void> {
-    if (!hasClanRole(interaction)) {
+    if (!hasStaffRole(interaction)) {
         await interaction.reply({ content: 'You do not have permission to do this.', flags: MessageFlags.Ephemeral });
         return;
     }
