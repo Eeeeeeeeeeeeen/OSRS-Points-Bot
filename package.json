@@ -1,0 +1,25 @@
+{
+  "name": "osrs-clan-bot",
+  "version": "1.0.0",
+  "description": "OSRS clan Discord bot for managing drop points and ranks",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "nodemon",
+    "build": "tsc",
+    "start": "node dist/deploy-commands.js && node dist/index.js",
+    "deploy-commands": "ts-node src/deploy-commands.ts"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "better-sqlite3": "^9.6.0",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^20.17.10",
+    "nodemon": "^3.1.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}
