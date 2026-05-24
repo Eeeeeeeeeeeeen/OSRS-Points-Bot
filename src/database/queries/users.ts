@@ -28,6 +28,14 @@ export function addUserPoints(discordId: string, delta: number, reason: string):
     `).run(discordId, delta, reason, row.total_points);
 }
 
+export function adjustUserPoints(discordId: string, delta: number, reason: string): number {
+    const db = getDb();
+    db.prepare('UPDATE users SET total_points = MAX(0, total_points + ?) WHERE discord_id = ?').run(delta, discordId);
+    const row = db.prepare('SELECT total_points FROM users WHERE discord_id = ?').get(discordId) as { total_points: number };
+    db.prepare('INSERT INTO user_point_log (discord_id, delta, reason, new_total) VALUES (?, ?, ?, ?)').run(discordId, delta, reason, row.total_points);
+    return row.total_points;
+}
+
 export function setUserPoints(discordId: string, points: number): void {
     const db = getDb();
     const current = getUserById(discordId);

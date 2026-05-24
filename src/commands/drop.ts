@@ -14,6 +14,8 @@ import { isEligibleDrop, calculatePoints } from '../services/pointsService';
 import { upsertUser } from '../database/queries/users';
 import { insertDrop, updateDropReviewMessage } from '../database/queries/drops';
 import { getItemOverride } from '../database/queries/itemOverrides';
+import { getCustomItem, searchCustomItems } from '../database/queries/customItems';
+import { getConfig } from '../database/queries/botConfig';
 import { buildReviewEmbed } from '../embeds/reviewEmbed';
 import { config } from '../config';
 
@@ -52,14 +54,8 @@ export const drop: Command = {
             return;
         }
 
-        const itemIdStr = interaction.options.getString('item', true);
-        const itemId = parseInt(itemIdStr, 10);
+        const itemValue = interaction.options.getString('item', true);
         const screenshot = interaction.options.getAttachment('screenshot', true);
-
-        if (isNaN(itemId)) {
-            await interaction.editReply('Please select an item from the autocomplete list.');
-            return;
-        }
 
         const teammates: User[] = [];
         for (let i = 1; i <= 5; i++) {
@@ -69,43 +65,87 @@ export const drop: Command = {
             }
         }
 
-        const items = await getItemMapping().catch(() => []);
-        const itemData = findItemById(itemId, items);
-        const itemName = itemData?.name ?? `Unknown Item (ID: ${itemId})`;
-
         const teamSize = 1 + teammates.length;
-        const override = getItemOverride(itemId);
 
+        let itemName: string;
+        let itemId: number | null;
         let gpValue: number;
         let awardedPoints: number;
+        let priceDisplay: string;
 
-        if (override) {
-            // Fixed points override — skip price API and eligibility check
+        if (itemValue.startsWith('custom:')) {
+            const customId = parseInt(itemValue.split(':')[1], 10);
+            if (isNaN(customId)) {
+                await interaction.editReply('Please select an item from the autocomplete list.');
+                return;
+            }
+
+            const customItem = getCustomItem(customId);
+            if (!customItem) {
+                await interaction.editReply('This item no longer exists. Please select another item from the list.');
+                return;
+            }
+
+            let basePoints = customItem.points;
+            if (basePoints === null && customItem.category) {
+                const configVal = getConfig(`category_points_${customItem.category}`);
+                basePoints = configVal ? parseInt(configVal, 10) : null;
+            }
+
+            if (basePoints === null) {
+                const hint = customItem.category === 'pet'
+                    ? 'No Pet default is configured. Ask an admin to run `/admin setcategorypoints`.'
+                    : 'Ask an admin to set explicit points via `/admin addcustomitem`.';
+                await interaction.editReply(`**${customItem.name}** has no points set. ${hint}`);
+                return;
+            }
+
+            itemId = null;
+            itemName = customItem.name;
             gpValue = 0;
-            awardedPoints = Math.max(1, Math.floor(override.points / teamSize));
+            awardedPoints = Math.max(1, Math.floor(basePoints / teamSize));
+            priceDisplay = `custom item: ${basePoints} pts total`;
         } else {
-            let priceData;
-            try {
-                priceData = await getItemPrice(itemId);
-            } catch {
-                await interaction.editReply('Could not fetch item price. Please try again in a moment.');
+            const parsedId = parseInt(itemValue, 10);
+            if (isNaN(parsedId)) {
+                await interaction.editReply('Please select an item from the autocomplete list.');
                 return;
             }
+            itemId = parsedId;
 
-            const fetchedPrice = getBestPrice(priceData);
-            if (fetchedPrice === null || !isEligibleDrop(fetchedPrice)) {
-                await interaction.editReply('This item is worth less than 1,000,000 GP and does not qualify for points.');
-                return;
+            const items = await getItemMapping().catch(() => []);
+            const itemData = findItemById(itemId, items);
+            itemName = itemData?.name ?? `Unknown Item (ID: ${itemId})`;
+
+            const override = getItemOverride(itemId);
+
+            if (override) {
+                gpValue = 0;
+                awardedPoints = Math.max(1, Math.floor(override.points / teamSize));
+                priceDisplay = `fixed override: ${override.points} pts total`;
+            } else {
+                let priceData;
+                try {
+                    priceData = await getItemPrice(itemId);
+                } catch {
+                    await interaction.editReply('Could not fetch item price. Please try again in a moment.');
+                    return;
+                }
+
+                const fetchedPrice = getBestPrice(priceData);
+                if (fetchedPrice === null || !isEligibleDrop(fetchedPrice)) {
+                    await interaction.editReply('This item is worth less than 1,000,000 GP and does not qualify for points.');
+                    return;
+                }
+
+                gpValue = fetchedPrice;
+                awardedPoints = calculatePoints(gpValue, teamSize);
+                priceDisplay = `${gpValue.toLocaleString()} GP`;
             }
-
-            gpValue = fetchedPrice;
-            awardedPoints = calculatePoints(gpValue, teamSize);
         }
 
-        // interaction.member already carries the submitter's join date — no guild fetch needed
         upsertUser(interaction.user, getJoinedAt(interaction.member));
 
-        // For teammates, try fetching from guild if cached; otherwise default to now
         for (const tm of teammates) {
             const tmMember = interaction.guild
                 ? await interaction.guild.members.fetch(tm.id).catch(() => null)
@@ -133,10 +173,6 @@ export const drop: Command = {
         const reviewMessage = await reviewChannel.send({ embeds: [embed], components: [row] });
         updateDropReviewMessage(drop.id, reviewChannel.id, reviewMessage.id);
 
-        const priceDisplay = override
-            ? `fixed override: ${override.points} pts total`
-            : `${gpValue.toLocaleString()} GP`;
-
         await interaction.editReply(
             `Your drop of **${itemName}** (${priceDisplay}) has been submitted for review! ` +
             `Each team member will receive **${awardedPoints}** point(s) upon approval.`,
@@ -150,9 +186,28 @@ export const drop: Command = {
             return;
         }
         try {
-            const items = await getItemMapping();
-            const matches = searchItems(focused, items);
-            await interaction.respond(matches.map(item => ({ name: item.name, value: String(item.id) })));
+            // Custom items first — they're explicitly configured and always valid
+            const customMatches = searchCustomItems(focused);
+            const customNames = new Set(customMatches.map(i => i.name.toLowerCase()));
+            const customChoices = customMatches.map(item => {
+                const tag = item.category === 'pet' ? ' [Pet]'
+                    : item.category === 'untradeable' ? ' [Untradeable]'
+                    : ' [Custom]';
+                return { name: `${item.name}${tag}`, value: `custom:${item.id}` };
+            });
+
+            // Fill remaining slots with GE items, excluding any names already shown as custom
+            const remaining = 25 - customChoices.length;
+            let geChoices: { name: string; value: string }[] = [];
+            if (remaining > 0) {
+                const items = await getItemMapping();
+                geChoices = searchItems(focused, items)
+                    .filter(i => !customNames.has(i.name.toLowerCase()))
+                    .slice(0, remaining)
+                    .map(item => ({ name: item.name, value: String(item.id) }));
+            }
+
+            await interaction.respond([...customChoices, ...geChoices]);
         } catch {
             await interaction.respond([]);
         }

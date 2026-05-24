@@ -63,6 +63,22 @@ const MIGRATIONS: string[] = [
     `,
     // 2 — staff note on drops
     `ALTER TABLE drops ADD COLUMN staff_note TEXT;`,
+    // 3 — custom items (pets, untradeables) and bot config (category defaults)
+    `
+    CREATE TABLE IF NOT EXISTS custom_items (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT NOT NULL UNIQUE,
+        category   TEXT,
+        points     INTEGER,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    );
+
+    CREATE TABLE IF NOT EXISTS bot_config (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    );
+    `,
 ];
 
 export function runMigrations(db: Database.Database): void {
