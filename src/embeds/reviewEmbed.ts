@@ -9,7 +9,6 @@ import { DropRow } from '../types/db';
 
 export function buildReviewEmbed(drop: DropRow, submitter: User, teammates: User[]) {
     const team = [submitter, ...teammates].map(u => `<@${u.id}>`).join(', ');
-    const gpFormatted = drop.gp_value.toLocaleString();
 
     const embed = new EmbedBuilder()
         .setTitle('Drop Submission — Pending Review')
@@ -17,7 +16,7 @@ export function buildReviewEmbed(drop: DropRow, submitter: User, teammates: User
         .setImage(drop.screenshot_url)
         .addFields(
             { name: 'Item', value: drop.item_name, inline: true },
-            { name: 'GP Value', value: `${gpFormatted} GP`, inline: true },
+            ...(drop.gp_value > 0 ? [{ name: 'GP Value', value: `${drop.gp_value.toLocaleString()} GP`, inline: true }] : []),
             { name: 'Points Each', value: String(drop.awarded_points), inline: true },
             { name: 'Team', value: team, inline: false },
         )
@@ -52,7 +51,7 @@ export function buildAcceptedEmbed(drop: DropRow, staffUser: User): EmbedBuilder
         .setImage(drop.screenshot_url)
         .addFields(
             { name: 'Item', value: drop.item_name, inline: true },
-            { name: 'GP Value', value: `${drop.gp_value.toLocaleString()} GP`, inline: true },
+            ...(drop.gp_value > 0 ? [{ name: 'GP Value', value: `${drop.gp_value.toLocaleString()} GP`, inline: true }] : []),
             { name: 'Points Each', value: String(drop.awarded_points), inline: true },
         )
         .setFooter({ text: `Accepted by ${staffUser.username} • Drop ID: ${drop.id}` })
@@ -65,7 +64,7 @@ export function buildRejectedEmbed(drop: DropRow, staffUser: User, reason?: stri
         .setColor(0xCC2222)
         .addFields(
             { name: 'Item', value: drop.item_name, inline: true },
-            { name: 'GP Value', value: drop.gp_value > 0 ? `${drop.gp_value.toLocaleString()} GP` : 'Override', inline: true },
+            ...(drop.gp_value > 0 ? [{ name: 'GP Value', value: `${drop.gp_value.toLocaleString()} GP`, inline: true }] : []),
         );
 
     if (reason) {

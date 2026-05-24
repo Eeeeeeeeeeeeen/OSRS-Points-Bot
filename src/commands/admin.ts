@@ -14,7 +14,7 @@ import { Command } from '../types/command';
 import { getUserById, setUserPoints, adjustUserPoints, upsertUser } from '../database/queries/users';
 import { getAllRankTiers, insertRankTier, deleteRankTier, getRankTierByRoleId } from '../database/queries/ranks';
 import { getItemOverride, setItemOverride, removeItemOverride, getAllItemOverrides } from '../database/queries/itemOverrides';
-import { getAllCustomItems, getCustomItem, upsertCustomItem, removeCustomItem, CustomItemCategory } from '../database/queries/customItems';
+import { getAllCustomItems, getCustomItem, searchCustomItems, upsertCustomItem, removeCustomItem, getPartCountForParent, CustomItemCategory } from '../database/queries/customItems';
 import { getConfig, setConfig } from '../database/queries/botConfig';
 import { getAcceptedDropsForUser } from '../database/queries/drops';
 import { getItemMapping, searchItems, findItemById } from '../services/osrsApi';
@@ -149,6 +149,12 @@ export const admin: Command = {
                         .setDescription('Fixed pts to award (total, before team split) — leave blank to use category default')
                         .setRequired(false)
                         .setMinValue(1),
+                )
+                .addStringOption(opt =>
+                    opt.setName('is_component_of')
+                        .setDescription('Link this part to a composite item set (e.g. "Soulreaper Axe") — start typing to search')
+                        .setRequired(false)
+                        .setAutocomplete(true),
                 ),
         )
         .addSubcommand(sub =>
@@ -163,22 +169,20 @@ export const admin: Command = {
         )
         .addSubcommand(sub =>
             sub.setName('listcustomitems')
-                .setDescription('List all custom items and category defaults'),
+                .setDescription('List all custom items'),
         )
         .addSubcommand(sub =>
             sub.setName('setcategorypoints')
-                .setDescription('Set the default points awarded for a category of custom items (e.g. all pets)')
+                .setDescription('Set the default points awarded for all pets without an individual override')
                 .addStringOption(opt =>
                     opt.setName('category')
-                        .setDescription('Category to configure')
+                        .setDescription('Item category')
                         .setRequired(true)
-                        .addChoices(
-                            { name: 'Pet', value: 'pet' },
-                        ),
+                        .addChoices({ name: 'Pet', value: 'pet' }),
                 )
                 .addIntegerOption(opt =>
                     opt.setName('points')
-                        .setDescription('Default pts to award for this category (total, before team split)')
+                        .setDescription('Default points to award (total, before team split)')
                         .setRequired(true)
                         .setMinValue(1),
                 ),
@@ -193,7 +197,7 @@ export const admin: Command = {
         const sub = interaction.options.getSubcommand();
 
         switch (sub) {
-            case 'eventpoints':     await handleEventPoints(interaction);    break;
+            case 'eventpoints':      await handleEventPoints(interaction);     break;
             case 'setpoints':       await handleSetPoints(interaction);      break;
             case 'setrank':         await handleSetRank(interaction);        break;
             case 'addrank':         await handleAddRank(interaction);        break;
@@ -203,48 +207,90 @@ export const admin: Command = {
             case 'removeitempoints': await handleRemoveItemPoints(interaction); break;
             case 'listitempoints':   await handleListItemPoints(interaction);   break;
             case 'removedrops':      await handleRemoveDrops(interaction);      break;
-            case 'addcustomitem':    await handleAddCustomItem(interaction);    break;
-            case 'removecustomitem': await handleRemoveCustomItem(interaction); break;
-            case 'listcustomitems':  await handleListCustomItems(interaction);  break;
-            case 'setcategorypoints': await handleSetCategoryPoints(interaction); break;
+            case 'addcustomitem':      await handleAddCustomItem(interaction);      break;
+            case 'removecustomitem':   await handleRemoveCustomItem(interaction);   break;
+            case 'listcustomitems':    await handleListCustomItems(interaction);    break;
+            case 'setcategorypoints':  await handleSetCategoryPoints(interaction);  break;
         }
     },
 
     async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
         const sub = interaction.options.getSubcommand();
-        if (sub !== 'setitempoints' && sub !== 'removeitempoints' && sub !== 'removecustomitem') return;
+        if (sub !== 'setitempoints' && sub !== 'removeitempoints' && sub !== 'removecustomitem' && sub !== 'addcustomitem') return;
 
         const focused = interaction.options.getFocused();
+
+        if (sub === 'addcustomitem') {
+            if (focused.length < 2) { await interaction.respond([]); return; }
+            try {
+                const customParents = searchCustomItems(focused)
+                    .filter(i => i.parent_ref === null)
+                    .slice(0, 10)
+                    .map(i => {
+                        const tag = i.category === 'pet' ? '[Pet]' : i.category === 'untradeable' ? '[Untradeable]' : '[Custom]';
+                        return { name: `${i.name} [${tag}]`, value: `custom:${i.id}` };
+                    });
+                const customNames = new Set(customParents.map(c => c.name.split(' [')[0].toLowerCase()));
+                const geItems = await getItemMapping();
+                const geParents = searchItems(focused, geItems)
+                    .filter(i => !customNames.has(i.name.toLowerCase()))
+                    .slice(0, 25 - customParents.length)
+                    .map(i => ({ name: i.name, value: `ge:${i.id}` }));
+                await interaction.respond([...customParents, ...geParents]);
+            } catch {
+                await interaction.respond([]);
+            }
+            return;
+        }
 
         if (sub === 'removecustomitem') {
             const items = getAllCustomItems();
             const lower = focused.toLowerCase();
             const matches = items.filter(i => i.name.toLowerCase().includes(lower)).slice(0, 25);
             await interaction.respond(matches.map(i => {
-                const tag = i.category === 'pet' ? ' [Pet]' : i.category === 'untradeable' ? ' [Untradeable]' : '';
-                const pts = i.points !== null ? ` (${i.points} pts)` : ' (category default)';
+                const tag = i.parent_name ? ` [Part of ${i.parent_name}]`
+                    : i.category === 'pet' ? ' [Pet]'
+                    : i.category === 'untradeable' ? ' [Untradeable]'
+                    : '';
+                const pts = i.parent_name ? '' : i.points !== null ? ` (${i.points} pts)` : ' (category default)';
                 return { name: `${i.name}${tag}${pts}`, value: String(i.id) };
             }));
             return;
         }
 
         if (sub === 'removeitempoints') {
-            const overrides = getAllItemOverrides();
             const lower = focused.toLowerCase();
-            const matches = overrides.filter(o => o.item_name.toLowerCase().includes(lower)).slice(0, 25);
-            await interaction.respond(matches.map(o => ({ name: `${o.item_name} (${o.points} pts)`, value: String(o.item_id) })));
+            const overrides = getAllItemOverrides();
+            const geMatches = overrides
+                .filter(o => o.item_name.toLowerCase().includes(lower))
+                .slice(0, 20)
+                .map(o => ({ name: `${o.item_name} (${o.points} pts)`, value: String(o.item_id) }));
+            const petMatches = getAllCustomItems()
+                .filter(i => i.category === 'pet' && i.points !== null && i.name.toLowerCase().includes(lower))
+                .slice(0, 25 - geMatches.length)
+                .map(i => ({ name: `${i.name} [Pet] (${i.points} pts)`, value: `custom:${i.id}` }));
+            await interaction.respond([...geMatches, ...petMatches]);
             return;
         }
 
-        // setitempoints — search all OSRS items
+        // setitempoints — search pets first, then GE items
         if (focused.length < 2) {
             await interaction.respond([]);
             return;
         }
         try {
+            const petMatches = searchCustomItems(focused).filter(i => i.category === 'pet');
+            const petNames = new Set(petMatches.map(i => i.name.toLowerCase()));
+            const petChoices = petMatches.map(i => ({ name: `${i.name} [Pet]`, value: `custom:${i.id}` }));
+
+            const remaining = 25 - petChoices.length;
             const items = await getItemMapping();
-            const matches = searchItems(focused, items);
-            await interaction.respond(matches.map(item => ({ name: item.name, value: String(item.id) })));
+            const geChoices = searchItems(focused, items)
+                .filter(i => !petNames.has(i.name.toLowerCase()))
+                .slice(0, remaining)
+                .map(item => ({ name: item.name, value: String(item.id) }));
+
+            await interaction.respond([...petChoices, ...geChoices]);
         } catch {
             await interaction.respond([]);
         }
@@ -395,10 +441,29 @@ async function handleListRanks(interaction: ChatInputCommandInteraction): Promis
 }
 
 async function handleSetItemPoints(interaction: ChatInputCommandInteraction): Promise<void> {
-    const itemIdStr = interaction.options.getString('item', true);
-    const itemId = parseInt(itemIdStr, 10);
+    const itemValue = interaction.options.getString('item', true);
     const points = interaction.options.getInteger('points', true);
 
+    if (itemValue.startsWith('custom:')) {
+        const customId = parseInt(itemValue.split(':')[1], 10);
+        if (isNaN(customId)) {
+            await interaction.reply({ content: 'Please select an item from the autocomplete list.', flags: MessageFlags.Ephemeral });
+            return;
+        }
+        const customItem = getCustomItem(customId);
+        if (!customItem) {
+            await interaction.reply({ content: 'That item no longer exists.', flags: MessageFlags.Ephemeral });
+            return;
+        }
+        upsertCustomItem(customItem.name, customItem.category, points);
+        await interaction.reply({
+            content: `**${customItem.name}** [Pet] will now always award **${points}** point(s) (split between team members).`,
+            flags: MessageFlags.Ephemeral,
+        });
+        return;
+    }
+
+    const itemId = parseInt(itemValue, 10);
     if (isNaN(itemId)) {
         await interaction.reply({ content: 'Please select an item from the autocomplete list.', flags: MessageFlags.Ephemeral });
         return;
@@ -417,9 +482,28 @@ async function handleSetItemPoints(interaction: ChatInputCommandInteraction): Pr
 }
 
 async function handleRemoveItemPoints(interaction: ChatInputCommandInteraction): Promise<void> {
-    const itemIdStr = interaction.options.getString('item', true);
-    const itemId = parseInt(itemIdStr, 10);
+    const itemValue = interaction.options.getString('item', true);
 
+    if (itemValue.startsWith('custom:')) {
+        const customId = parseInt(itemValue.split(':')[1], 10);
+        if (isNaN(customId)) {
+            await interaction.reply({ content: 'Please select an item from the autocomplete list.', flags: MessageFlags.Ephemeral });
+            return;
+        }
+        const customItem = getCustomItem(customId);
+        if (!customItem) {
+            await interaction.reply({ content: 'That item no longer exists.', flags: MessageFlags.Ephemeral });
+            return;
+        }
+        upsertCustomItem(customItem.name, customItem.category, null);
+        await interaction.reply({
+            content: `Removed points override for **${customItem.name}**. It will now use the Pet default.`,
+            flags: MessageFlags.Ephemeral,
+        });
+        return;
+    }
+
+    const itemId = parseInt(itemValue, 10);
     if (isNaN(itemId)) {
         await interaction.reply({ content: 'Please select an item from the autocomplete list.', flags: MessageFlags.Ephemeral });
         return;
@@ -459,20 +543,68 @@ async function handleAddCustomItem(interaction: ChatInputCommandInteraction): Pr
     const name = interaction.options.getString('name', true).trim();
     const category = (interaction.options.getString('category') ?? null) as CustomItemCategory | null;
     const points = interaction.options.getInteger('points') ?? null;
+    const parentStr = interaction.options.getString('is_component_of');
 
-    upsertCustomItem(name, category, points);
+    let parentRef: string | undefined;
+    let parentName: string | undefined;
 
-    const categoryLabel = category === 'pet' ? 'Pet' : category === 'untradeable' ? 'Untradeable' : null;
-    const tagStr = categoryLabel ? ` [${categoryLabel}]` : '';
+    if (parentStr !== null) {
+        if (parentStr.startsWith('ge:')) {
+            const geId = parseInt(parentStr.split(':')[1], 10);
+            if (isNaN(geId)) {
+                await interaction.reply({ content: 'Please select a parent item from the autocomplete list.', flags: MessageFlags.Ephemeral });
+                return;
+            }
+            const geItems = await getItemMapping().catch(() => []);
+            const itemData = findItemById(geId, geItems);
+            if (!itemData) {
+                await interaction.reply({ content: 'Could not find that item. Please select from the autocomplete list.', flags: MessageFlags.Ephemeral });
+                return;
+            }
+            parentRef = parentStr;
+            parentName = itemData.name;
+        } else if (parentStr.startsWith('custom:')) {
+            const customId = parseInt(parentStr.split(':')[1], 10);
+            if (isNaN(customId)) {
+                await interaction.reply({ content: 'Please select a parent item from the autocomplete list.', flags: MessageFlags.Ephemeral });
+                return;
+            }
+            const parentItem = getCustomItem(customId);
+            if (!parentItem) {
+                await interaction.reply({ content: 'That custom item no longer exists.', flags: MessageFlags.Ephemeral });
+                return;
+            }
+            parentRef = parentStr;
+            parentName = parentItem.name;
+        } else {
+            await interaction.reply({ content: 'Please select a parent item from the autocomplete list.', flags: MessageFlags.Ephemeral });
+            return;
+        }
+    }
+
+    const finalCategory = category ?? (parentRef !== undefined ? 'untradeable' : null);
+    const saved = upsertCustomItem(name, finalCategory, points, parentRef ?? null, parentName ?? null);
+
+    const tagStr = saved.parent_name ? ` [Part of ${saved.parent_name}]`
+        : finalCategory === 'pet' ? ' [Pet]'
+        : finalCategory === 'untradeable' ? ' [Untradeable]'
+        : '';
 
     let msg: string;
-    if (points !== null) {
+    if (saved.parent_name && saved.parent_ref) {
+        const partCount = getPartCountForParent(saved.parent_ref);
+        // Look up parent points for display
+        let parentPts: number | null = null;
+        if (saved.parent_ref.startsWith('ge:')) {
+            parentPts = getItemOverride(parseInt(saved.parent_ref.split(':')[1], 10))?.points ?? null;
+        } else if (saved.parent_ref.startsWith('custom:')) {
+            parentPts = getCustomItem(parseInt(saved.parent_ref.split(':')[1], 10))?.points ?? null;
+        }
+        const perPart = parentPts !== null ? Math.floor(parentPts / partCount) : null;
+        const ptsInfo = perPart !== null ? ` (${partCount} part(s) total → **${perPart}** pts each)` : '';
+        msg = `Saved **${name}**${tagStr}${ptsInfo}.`;
+    } else if (points !== null) {
         msg = `Saved **${name}**${tagStr} with a fixed **${points}** pts.`;
-    } else if (category === 'pet') {
-        const defaultVal = getConfig('category_points_pet');
-        msg = defaultVal
-            ? `Saved **${name}** [Pet]. It will use the Pet default of **${defaultVal}** pts when submitted.`
-            : `Saved **${name}** [Pet]. No Pet default is configured yet — use \`/admin setcategorypoints\` to set one.`;
     } else {
         msg = `Saved **${name}**${tagStr}. No points configured — set explicit points via \`/admin addcustomitem name:${name} points:<value>\`.`;
     }
@@ -498,64 +630,96 @@ async function handleRemoveCustomItem(interaction: ChatInputCommandInteraction):
     });
 }
 
+async function handleSetCategoryPoints(interaction: ChatInputCommandInteraction): Promise<void> {
+    const category = interaction.options.getString('category', true);
+    const points = interaction.options.getInteger('points', true);
+    setConfig(`category_points_${category}`, String(points));
+    const label = category === 'pet' ? 'Pet' : category;
+    await interaction.reply({
+        content: `Default points for **${label}** category set to **${points}** pts (applied to any pet without an individual override).`,
+        flags: MessageFlags.Ephemeral,
+    });
+}
+
+function addChunkedFields(embed: EmbedBuilder, heading: string, lines: string[]): void {
+    const chunks: string[] = [];
+    let current = '';
+    for (const line of lines) {
+        const appended = current ? `${current}\n${line}` : line;
+        if (appended.length > 1024) {
+            chunks.push(current);
+            current = line;
+        } else {
+            current = appended;
+        }
+    }
+    if (current) chunks.push(current);
+
+    chunks.forEach((chunk, i) => {
+        embed.addFields({ name: i === 0 ? heading : `${heading} (cont.)`, value: chunk });
+    });
+}
+
 async function handleListCustomItems(interaction: ChatInputCommandInteraction): Promise<void> {
     const items = getAllCustomItems();
-    const petDefault = getConfig('category_points_pet');
 
     const embed = new EmbedBuilder()
         .setTitle('Custom Items')
         .setColor(0x00AAFF)
         .setTimestamp();
 
-    embed.addFields({ name: 'Pet Default', value: petDefault ? `**${petDefault} pts**` : 'not set — use `/admin setcategorypoints`' });
-
     if (items.length === 0) {
-        embed.setDescription('No custom items added yet. Use `/admin addcustomitem` to add pets and untradeables.');
+        embed.setDescription('No custom items added yet. Use `/admin addcustomitem` to add untradeables.');
         await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
         return;
     }
 
-    const pets = items.filter(i => i.category === 'pet');
-    const untradeables = items.filter(i => i.category === 'untradeable');
-    const other = items.filter(i => !i.category);
+    const petDefault = getConfig('category_points_pet');
+    const pets = items.filter(i => i.category === 'pet' && i.parent_ref === null);
+    const untradeables = items.filter(i => i.category === 'untradeable' && i.parent_ref === null);
+    const other = items.filter(i => !i.category && i.parent_ref === null);
+    const parts = items.filter(i => i.parent_ref !== null);
 
     if (pets.length > 0) {
-        const lines = pets.map(i => {
-            const pts = i.points !== null
-                ? `${i.points} pts (fixed)`
-                : petDefault ? `${petDefault} pts (default)` : 'no pts set';
-            return `• ${i.name} — ${pts}`;
-        });
-        embed.addFields({ name: 'Pets', value: lines.join('\n') });
+        const defaultStr = petDefault ? `Default: **${petDefault} pts**` : 'No default set — use `/admin setcategorypoints`';
+        const lines = [defaultStr, ...pets.map(i => `• ${i.name} — ${i.points !== null ? `${i.points} pts` : 'uses default'}`)];
+        addChunkedFields(embed, 'Pets', lines);
     }
 
     if (untradeables.length > 0) {
-        const lines = untradeables.map(i => {
-            const pts = i.points !== null ? `${i.points} pts` : 'no pts set';
-            return `• ${i.name} — ${pts}`;
-        });
-        embed.addFields({ name: 'Untradeables', value: lines.join('\n') });
+        const lines = untradeables.map(i => `• ${i.name} — ${i.points !== null ? `${i.points} pts` : 'no pts set'}`);
+        addChunkedFields(embed, 'Untradeables', lines);
+    }
+
+    if (parts.length > 0) {
+        // Group by parent_name for display
+        const grouped = new Map<string, { ref: string; names: string[] }>();
+        for (const p of parts) {
+            const key = p.parent_name ?? 'Unknown';
+            if (!grouped.has(key)) grouped.set(key, { ref: p.parent_ref!, names: [] });
+            grouped.get(key)!.names.push(p.name);
+        }
+        for (const [parentDisplayName, { ref, names }] of grouped) {
+            let parentPts: number | null = null;
+            if (ref.startsWith('ge:')) {
+                parentPts = getItemOverride(parseInt(ref.split(':')[1], 10))?.points ?? null;
+            } else if (ref.startsWith('custom:')) {
+                parentPts = getCustomItem(parseInt(ref.split(':')[1], 10))?.points ?? null;
+            }
+            const perPart = parentPts !== null ? Math.floor(parentPts / names.length) : null;
+            const heading = perPart !== null
+                ? `Parts of ${parentDisplayName} (${names.length} parts, ${perPart} pts each)`
+                : `Parts of ${parentDisplayName} (${names.length} parts, pts from GE price)`;
+            addChunkedFields(embed, heading, names.map(n => `• ${n}`));
+        }
     }
 
     if (other.length > 0) {
         const lines = other.map(i => `• ${i.name} — ${i.points !== null ? `${i.points} pts` : 'no pts set'}`);
-        embed.addFields({ name: 'Other', value: lines.join('\n') });
+        addChunkedFields(embed, 'Other', lines);
     }
 
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-}
-
-async function handleSetCategoryPoints(interaction: ChatInputCommandInteraction): Promise<void> {
-    const category = interaction.options.getString('category', true) as CustomItemCategory;
-    const points = interaction.options.getInteger('points', true);
-    const label = category === 'pet' ? 'Pet' : 'Untradeable';
-
-    setConfig(`category_points_${category}`, String(points));
-
-    await interaction.reply({
-        content: `Set **${label}** default to **${points}** pts. Items in this category without fixed points will award **${points}** pts total when submitted.`,
-        flags: MessageFlags.Ephemeral,
-    });
 }
 
 async function handleRemoveDrops(interaction: ChatInputCommandInteraction): Promise<void> {

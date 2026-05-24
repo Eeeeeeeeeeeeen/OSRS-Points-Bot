@@ -14,7 +14,7 @@ import { isEligibleDrop, calculatePoints } from '../services/pointsService';
 import { upsertUser } from '../database/queries/users';
 import { insertDrop, updateDropReviewMessage } from '../database/queries/drops';
 import { getItemOverride } from '../database/queries/itemOverrides';
-import { getCustomItem, searchCustomItems } from '../database/queries/customItems';
+import { getCustomItem, searchCustomItems, getPartCountForParent } from '../database/queries/customItems';
 import { getConfig } from '../database/queries/botConfig';
 import { buildReviewEmbed } from '../embeds/reviewEmbed';
 import { config } from '../config';
@@ -86,25 +86,70 @@ export const drop: Command = {
                 return;
             }
 
-            let basePoints = customItem.points;
-            if (basePoints === null && customItem.category) {
-                const configVal = getConfig(`category_points_${customItem.category}`);
-                basePoints = configVal ? parseInt(configVal, 10) : null;
-            }
-
-            if (basePoints === null) {
-                const hint = customItem.category === 'pet'
-                    ? 'No Pet default is configured. Ask an admin to run `/admin setcategorypoints`.'
-                    : 'Ask an admin to set explicit points via `/admin addcustomitem`.';
-                await interaction.editReply(`**${customItem.name}** has no points set. ${hint}`);
-                return;
-            }
-
             itemId = null;
             itemName = customItem.name;
             gpValue = 0;
-            awardedPoints = Math.max(1, Math.floor(basePoints / teamSize));
-            priceDisplay = `custom item: ${basePoints} pts total`;
+
+            if (customItem.parent_ref !== null) {
+                const parentName = customItem.parent_name ?? 'Unknown item';
+                const partCount = Math.max(1, getPartCountForParent(customItem.parent_ref));
+
+                if (customItem.parent_ref.startsWith('ge:')) {
+                    const geId = parseInt(customItem.parent_ref.split(':')[1], 10);
+                    const override = getItemOverride(geId);
+                    if (override) {
+                        // Admin-set fixed points: divide points then split by team
+                        const perPartPoints = Math.floor(override.points / partCount);
+                        awardedPoints = Math.max(1, Math.floor(perPartPoints / teamSize));
+                        priceDisplay = `part of ${parentName}: ${perPartPoints} pts`;
+                    } else {
+                        // Live GE price: divide GP first so the cap applies per-part
+                        let rawGp: number | null = null;
+                        try {
+                            const priceData = await getItemPrice(geId);
+                            rawGp = getBestPrice(priceData);
+                        } catch { /* handled below */ }
+                        if (rawGp === null) {
+                            await interaction.editReply(`Could not fetch the price for **${parentName}**. Please try again.`);
+                            return;
+                        }
+                        const perPartGp = Math.floor(rawGp / partCount);
+                        awardedPoints = calculatePoints(perPartGp, teamSize);
+                        priceDisplay = `part of ${parentName}: ${perPartGp.toLocaleString()} GP`;
+                    }
+                } else if (customItem.parent_ref.startsWith('custom:')) {
+                    const parentId = parseInt(customItem.parent_ref.split(':')[1], 10);
+                    const parentItem = getCustomItem(parentId);
+                    const parentPts = parentItem?.points ?? null;
+                    if (parentPts === null) {
+                        await interaction.editReply(
+                            `**${parentName}** has no points configured. Ask an admin to set points via \`/admin setitempoints\`.`,
+                        );
+                        return;
+                    }
+                    const perPartPoints = Math.floor(parentPts / partCount);
+                    awardedPoints = Math.max(1, Math.floor(perPartPoints / teamSize));
+                    priceDisplay = `part of ${parentName}: ${perPartPoints} pts`;
+                } else {
+                    await interaction.editReply('Invalid parent item reference. Please contact an admin.');
+                    return;
+                }
+            } else {
+                let basePoints = customItem.points;
+                if (basePoints === null && customItem.category) {
+                    const configVal = getConfig(`category_points_${customItem.category}`);
+                    basePoints = configVal ? parseInt(configVal, 10) : null;
+                }
+                if (basePoints === null) {
+                    const hint = customItem.category === 'pet'
+                        ? 'No Pet default is set. Ask an admin to run `/admin setcategorypoints`.'
+                        : 'Ask an admin to set explicit points via `/admin addcustomitem`.';
+                    await interaction.editReply(`**${customItem.name}** has no points set. ${hint}`);
+                    return;
+                }
+                awardedPoints = Math.max(1, Math.floor(basePoints / teamSize));
+                priceDisplay = `custom item: ${basePoints} pts total`;
+            }
         } else {
             const parsedId = parseInt(itemValue, 10);
             if (isNaN(parsedId)) {
@@ -186,17 +231,18 @@ export const drop: Command = {
             return;
         }
         try {
-            // Custom items first — they're explicitly configured and always valid
+            // Custom items first (pets, untradeables, and composite parts)
             const customMatches = searchCustomItems(focused);
             const customNames = new Set(customMatches.map(i => i.name.toLowerCase()));
             const customChoices = customMatches.map(item => {
-                const tag = item.category === 'pet' ? ' [Pet]'
+                const tag = item.parent_name ? ` [Part of ${item.parent_name}]`
+                    : item.category === 'pet' ? ' [Pet]'
                     : item.category === 'untradeable' ? ' [Untradeable]'
                     : ' [Custom]';
                 return { name: `${item.name}${tag}`, value: `custom:${item.id}` };
             });
 
-            // Fill remaining slots with GE items, excluding any names already shown as custom
+            // Fill remaining slots with GE items, deduplicating against custom item names
             const remaining = 25 - customChoices.length;
             let geChoices: { name: string; value: string }[] = [];
             if (remaining > 0) {

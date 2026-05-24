@@ -63,7 +63,7 @@ const MIGRATIONS: string[] = [
     `,
     // 2 — staff note on drops
     `ALTER TABLE drops ADD COLUMN staff_note TEXT;`,
-    // 3 — custom items (pets, untradeables) and bot config (category defaults)
+    // 3 — custom items (untradeables) and bot config
     `
     CREATE TABLE IF NOT EXISTS custom_items (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,6 +79,30 @@ const MIGRATIONS: string[] = [
         updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     );
     `,
+    // 4 — composite items (multi-part untradeables, e.g. Soulreaper Axe)
+    `
+    CREATE TABLE IF NOT EXISTS composite_items (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        name         TEXT NOT NULL UNIQUE,
+        total_points INTEGER NOT NULL,
+        created_at   INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    );
+
+    CREATE TABLE IF NOT EXISTS composite_parts (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        composite_id INTEGER NOT NULL REFERENCES composite_items(id) ON DELETE CASCADE,
+        part_name    TEXT NOT NULL,
+        created_at   INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+        UNIQUE(composite_id, part_name)
+    );
+    `,
+    // 5 — remove auto-synced pets; pet points now managed via item_overrides (setitempoints)
+    `DELETE FROM custom_items WHERE category = 'pet' AND points IS NULL;`,
+    // 6 — link custom items to composite item sets (superseded by migration 7, kept for ordering)
+    `ALTER TABLE custom_items ADD COLUMN composite_id INTEGER REFERENCES composite_items(id) ON DELETE SET NULL;`,
+    // 7 — direct parent-item reference (replaces composite_items workflow)
+    `ALTER TABLE custom_items ADD COLUMN parent_ref TEXT;`,
+    `ALTER TABLE custom_items ADD COLUMN parent_name TEXT;`,
 ];
 
 export function runMigrations(db: Database.Database): void {

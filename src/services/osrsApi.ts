@@ -48,15 +48,7 @@ export async function getItemPrice(itemId: number): Promise<PriceData | null> {
 
 export async function fetchPetNames(): Promise<string[]> {
     const response = await axios.get<{ query: { categorymembers: { title: string }[] } }>(WIKI_API_URL, {
-        params: {
-            action: 'query',
-            list: 'categorymembers',
-            cmtitle: 'Category:Pets',
-            cmlimit: 500,
-            cmtype: 'page',
-            cmnamespace: 0,
-            format: 'json',
-        },
+        params: { action: 'query', list: 'categorymembers', cmtitle: 'Category:Pets', cmlimit: 500, cmtype: 'page', cmnamespace: 0, format: 'json' },
         headers: { 'User-Agent': USER_AGENT },
         timeout: 10000,
     });
