@@ -4,6 +4,7 @@ import { OsrsItem, PriceData } from '../types/osrs';
 const USER_AGENT = 'OSRS-Clan-Bot/1.0 (Discord clan drop tracker; contact: ian.thomson@codewizards.co.uk)';
 const MAPPING_URL = 'https://prices.runescape.wiki/api/v1/osrs/mapping';
 const PRICE_URL = 'https://prices.runescape.wiki/api/v1/osrs/latest';
+const WIKI_API_URL = 'https://oldschool.runescape.wiki/api.php';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 let itemCache: OsrsItem[] | null = null;
@@ -43,6 +44,23 @@ export async function getItemPrice(itemId: number): Promise<PriceData | null> {
         },
     );
     return response.data?.data?.[String(itemId)] ?? null;
+}
+
+export async function fetchPetNames(): Promise<string[]> {
+    const response = await axios.get<{ query: { categorymembers: { title: string }[] } }>(WIKI_API_URL, {
+        params: {
+            action: 'query',
+            list: 'categorymembers',
+            cmtitle: 'Category:Pets',
+            cmlimit: 500,
+            cmtype: 'page',
+            cmnamespace: 0,
+            format: 'json',
+        },
+        headers: { 'User-Agent': USER_AGENT },
+        timeout: 10000,
+    });
+    return (response.data?.query?.categorymembers ?? []).map(m => m.title);
 }
 
 export function getBestPrice(price: PriceData | null): number | null {
