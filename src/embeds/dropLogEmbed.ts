@@ -10,7 +10,7 @@ export function buildDropLogEmbed(drop: DropRow, submitter: User, teammates: Use
         .setImage(drop.screenshot_url)
         .addFields(
             { name: 'Item', value: drop.item_name, inline: true },
-            { name: 'GP Value', value: `${drop.gp_value.toLocaleString()} GP`, inline: true },
+            ...(drop.gp_value > 0 ? [{ name: 'GP Value', value: `${drop.gp_value.toLocaleString()} GP`, inline: true }] : []),
             { name: 'Points Each', value: String(drop.awarded_points), inline: true },
             { name: 'Received by', value: team, inline: false },
         )
