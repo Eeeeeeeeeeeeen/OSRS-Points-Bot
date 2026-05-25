@@ -74,16 +74,28 @@ export const createThread: Command = {
 
         const thread = await trialChannel.threads.create({
             name: `Trial — ${targetUser.username}`,
-            type: ChannelType.PublicThread,
+            type: ChannelType.PrivateThread,
             autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,
+            invitable: false,
         });
 
+        if (member.roles.cache.has(guestRoleId)) await member.roles.remove(guestRoleId);
         await member.roles.add(trialRoleId);
 
         upsertUser(targetUser, member.joinedTimestamp ?? Date.now());
 
         const trialId = insertTrial(targetUser.id, referralUser?.id ?? null, thread.id, interaction.user.id);
         const trial = getTrialById(trialId)!;
+
+        // Add trial member and all staff to the private thread
+        const allMembers = await guild.members.fetch();
+        const toAdd = [
+            targetUser.id,
+            ...allMembers
+                .filter(m => m.roles.cache.has(config.staffRoleId) || m.roles.cache.has(config.adminRoleId))
+                .map(m => m.id),
+        ];
+        await Promise.all(toAdd.map(id => thread.members.add(id)));
 
         const { embed, row } = buildTrialEmbed(trial, targetUser, referralUser ?? null, interaction.user);
         await thread.send({ embeds: [embed], components: [row] });
