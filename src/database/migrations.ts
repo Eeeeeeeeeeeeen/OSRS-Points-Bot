@@ -103,6 +103,20 @@ const MIGRATIONS: string[] = [
     // 7 — direct parent-item reference (replaces composite_items workflow)
     `ALTER TABLE custom_items ADD COLUMN parent_ref TEXT;`,
     `ALTER TABLE custom_items ADD COLUMN parent_name TEXT;`,
+    // 9 — trial membership threads
+    `
+    CREATE TABLE IF NOT EXISTS trials (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        discord_id   TEXT NOT NULL,
+        referrer_id  TEXT,
+        thread_id    TEXT NOT NULL UNIQUE,
+        status       TEXT NOT NULL DEFAULT 'active',
+        created_by   TEXT NOT NULL,
+        created_at   INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+        resolved_at  INTEGER,
+        resolved_by  TEXT
+    );
+    `,
 ];
 
 export function runMigrations(db: Database.Database): void {

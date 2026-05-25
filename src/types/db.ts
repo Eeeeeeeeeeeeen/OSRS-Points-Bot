@@ -46,3 +46,15 @@ export interface PointLogRow {
     new_total: number;
     created_at: number;
 }
+
+export interface TrialRow {
+    id: number;
+    discord_id: string;
+    referrer_id: string | null;
+    thread_id: string;
+    status: 'active' | 'approved' | 'denied';
+    created_by: string;
+    created_at: number;
+    resolved_at: number | null;
+    resolved_by: string | null;
+}

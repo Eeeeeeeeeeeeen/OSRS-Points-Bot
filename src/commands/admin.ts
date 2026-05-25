@@ -9,6 +9,7 @@ import {
     PermissionFlagsBits,
     MessageFlags,
     TextChannel,
+    ChannelType,
 } from 'discord.js';
 import { Command } from '../types/command';
 import { getUserById, setUserPoints, adjustUserPoints, upsertUser } from '../database/queries/users';
@@ -21,6 +22,7 @@ import { getItemMapping, searchItems, findItemById } from '../services/osrsApi';
 import { checkAndNotifyRankUp, forceSetRank } from '../services/rankService';
 import { config } from '../config';
 import { hasAdminRole } from '../utils/permissions';
+import { handleInductionSetup, handleInductionView } from './induction';
 
 export const admin: Command = {
     data: new SlashCommandBuilder()
@@ -186,6 +188,44 @@ export const admin: Command = {
                         .setRequired(true)
                         .setMinValue(1),
                 ),
+        )
+        .addSubcommandGroup(group =>
+            group.setName('induction')
+                .setDescription('Configure the trial membership induction system')
+                .addSubcommand(sub =>
+                    sub.setName('setup')
+                        .setDescription('Set the trial channel, roles, and referral points')
+                        .addChannelOption(opt =>
+                            opt.setName('channel')
+                                .setDescription('Channel where trial threads are created')
+                                .addChannelTypes(ChannelType.GuildText)
+                                .setRequired(true),
+                        )
+                        .addRoleOption(opt =>
+                            opt.setName('trial-role')
+                                .setDescription('Role applied when a trial starts')
+                                .setRequired(true),
+                        )
+                        .addRoleOption(opt =>
+                            opt.setName('member-role')
+                                .setDescription('Role applied when trial is approved')
+                                .setRequired(true),
+                        )
+                        .addRoleOption(opt =>
+                            opt.setName('guest-role')
+                                .setDescription('Role applied when trial is denied')
+                                .setRequired(true),
+                        )
+                        .addIntegerOption(opt =>
+                            opt.setName('referral-points')
+                                .setDescription('Points awarded to referrer on approval (default: 20)')
+                                .setMinValue(0),
+                        ),
+                )
+                .addSubcommand(sub =>
+                    sub.setName('view')
+                        .setDescription('View current induction configuration'),
+                ),
         ) as SlashCommandBuilder,
 
     async execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -194,7 +234,16 @@ export const admin: Command = {
             return;
         }
 
+        const group = interaction.options.getSubcommandGroup(false);
         const sub = interaction.options.getSubcommand();
+
+        if (group === 'induction') {
+            switch (sub) {
+                case 'setup': await handleInductionSetup(interaction); break;
+                case 'view':  await handleInductionView(interaction);  break;
+            }
+            return;
+        }
 
         switch (sub) {
             case 'eventpoints':      await handleEventPoints(interaction);     break;

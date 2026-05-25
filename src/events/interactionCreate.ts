@@ -5,8 +5,12 @@ import { handleRejectDrop } from '../interactions/buttons/rejectDrop';
 import { handleModifyDrop } from '../interactions/buttons/modifyDrop';
 import { handleApproveRankup } from '../interactions/buttons/approveRankup';
 import { handleConfirmRemoveDrop, handleCancelRemoveDrop } from '../interactions/buttons/confirmRemoveDrop';
+import { handleApproveTrial } from '../interactions/buttons/approveTrial';
+import { handleDenyTrial } from '../interactions/buttons/denyTrial';
 import { handleModifyDropSubmit } from '../interactions/modals/modifyDropSubmit';
 import { handleRejectDropSubmit } from '../interactions/modals/rejectDropSubmit';
+import { handleDenyTrialSubmit } from '../interactions/modals/denyTrialSubmit';
+import { handleInductionSetupSubmit } from '../interactions/modals/inductionSetupSubmit';
 import { handleSelectDropToRemove } from '../interactions/selects/selectDropToRemove';
 
 export function registerInteractionCreate(client: Client, commands: Map<string, Command>): void {
@@ -50,6 +54,12 @@ export function registerInteractionCreate(client: Client, commands: Map<string, 
                     case 'cancel_remove_drop':
                         await handleCancelRemoveDrop(interaction);
                         break;
+                    case 'approve_trial':
+                        await handleApproveTrial(interaction, parseInt(parts[1], 10));
+                        break;
+                    case 'deny_trial':
+                        await handleDenyTrial(interaction, parseInt(parts[1], 10));
+                        break;
                 }
                 return;
             }
@@ -72,6 +82,10 @@ export function registerInteractionCreate(client: Client, commands: Map<string, 
                     await handleModifyDropSubmit(interaction, parseInt(parts[1], 10));
                 } else if (action === 'reject_drop_submit') {
                     await handleRejectDropSubmit(interaction, parseInt(parts[1], 10));
+                } else if (action === 'deny_trial_submit') {
+                    await handleDenyTrialSubmit(interaction, parseInt(parts[1], 10));
+                } else if (action === 'ind_setup') {
+                    await handleInductionSetupSubmit(interaction, parts[1], parts[2], parts[3], parts[4]);
                 }
                 return;
             }
