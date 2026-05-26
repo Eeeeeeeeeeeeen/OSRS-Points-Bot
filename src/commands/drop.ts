@@ -18,6 +18,7 @@ import { getCustomItem, searchCustomItems, getPartCountForParent } from '../data
 import { getTradeablePartsForParent } from '../database/queries/tradeableParts';
 import { getConfig } from '../database/queries/botConfig';
 import { buildReviewEmbed } from '../embeds/reviewEmbed';
+import { formatGp } from '../utils/formatGp';
 import { config } from '../config';
 
 function getJoinedAt(member: GuildMember | APIInteractionGuildMember | null): number {
@@ -130,7 +131,7 @@ export const drop: Command = {
                         const perPartGp = Math.floor(Math.max(0, rawGp - sumTradeableGp) / partCount);
                         awardedPoints = calculatePoints(perPartGp, teamSize);
                         itemSuffix = `part of ${parentName}`;
-                        priceDisplay = `${perPartGp.toLocaleString()} GP`;
+                        priceDisplay = formatGp(perPartGp);
                     }
                 } else if (customItem.parent_ref.startsWith('custom:')) {
                     const parentId = parseInt(customItem.parent_ref.split(':')[1], 10);
@@ -201,7 +202,7 @@ export const drop: Command = {
 
                 gpValue = fetchedPrice;
                 awardedPoints = calculatePoints(gpValue, teamSize);
-                priceDisplay = `${gpValue.toLocaleString()} GP`;
+                priceDisplay = formatGp(gpValue);
             }
         }
 

@@ -1,6 +1,7 @@
 import { EmbedBuilder, GuildMember } from 'discord.js';
 import { UserRow } from '../types/db';
 import { RankTierRow } from '../types/db';
+import { formatGp } from '../utils/formatGp';
 
 export function buildPointsEmbed(
     member: GuildMember,
@@ -10,9 +11,10 @@ export function buildPointsEmbed(
     recentDrops: { item_name: string; gp_value: number; awarded_points: number; submitted_at: number }[],
 ): EmbedBuilder {
     const dropLines = recentDrops.length
-        ? recentDrops.map(d =>
-            `**${d.item_name}** — ${d.gp_value.toLocaleString()} GP (+${d.awarded_points} pts)`
-          ).join('\n')
+        ? recentDrops.map(d => {
+            const valueStr = d.gp_value > 0 ? formatGp(d.gp_value) : `${d.awarded_points} pts`;
+            return `**${d.item_name}** — ${valueStr} (+${d.awarded_points} pts)`;
+          }).join('\n')
         : 'No accepted drops yet.';
 
     const embed = new EmbedBuilder()

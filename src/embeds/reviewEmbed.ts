@@ -6,10 +6,21 @@ import {
     User,
 } from 'discord.js';
 import { DropRow } from '../types/db';
+import { formatGp } from '../utils/formatGp';
+
+function itemThumbnail(itemId: number | null): string | null {
+    return itemId ? `https://static.runelite.net/cache/item/icon/${itemId}.png` : null;
+}
+
+function valueDisplay(drop: DropRow, override?: string): string {
+    if (override) return override;
+    return drop.gp_value > 0 ? formatGp(drop.gp_value) : `${drop.awarded_points} pts`;
+}
 
 export function buildReviewEmbed(drop: DropRow, submitter: User, teammates: User[], priceDisplay?: string, itemSuffix?: string) {
     const team = [submitter, ...teammates].map(u => `<@${u.id}>`).join(', ');
     const itemDisplay = itemSuffix ? `${drop.item_name} (${itemSuffix})` : drop.item_name;
+    const thumbnail = itemThumbnail(drop.item_id);
 
     const embed = new EmbedBuilder()
         .setTitle('Drop Submission — Pending Review')
@@ -17,12 +28,14 @@ export function buildReviewEmbed(drop: DropRow, submitter: User, teammates: User
         .setImage(drop.screenshot_url)
         .addFields(
             { name: 'Item', value: itemDisplay, inline: true },
-            { name: 'GP Value', value: priceDisplay ?? (drop.gp_value > 0 ? `${drop.gp_value.toLocaleString()} GP` : `${drop.awarded_points} pts`), inline: true },
+            { name: 'GP Value', value: valueDisplay(drop, priceDisplay), inline: true },
             { name: 'Points Each', value: String(drop.awarded_points), inline: true },
             { name: 'Team', value: team, inline: false },
         )
         .setFooter({ text: `Drop ID: ${drop.id}` })
         .setTimestamp();
+
+    if (thumbnail) embed.setThumbnail(thumbnail);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
@@ -46,17 +59,21 @@ export function buildReviewEmbed(drop: DropRow, submitter: User, teammates: User
 }
 
 export function buildAcceptedEmbed(drop: DropRow, staffUser: User): EmbedBuilder {
-    return new EmbedBuilder()
+    const thumbnail = itemThumbnail(drop.item_id);
+    const embed = new EmbedBuilder()
         .setTitle('Drop Accepted')
         .setColor(0x00CC44)
         .setImage(drop.screenshot_url)
         .addFields(
             { name: 'Item', value: drop.item_name, inline: true },
-            ...(drop.gp_value > 0 ? [{ name: 'GP Value', value: `${drop.gp_value.toLocaleString()} GP`, inline: true }] : []),
+            { name: 'GP Value', value: valueDisplay(drop), inline: true },
             { name: 'Points Each', value: String(drop.awarded_points), inline: true },
         )
         .setFooter({ text: `Accepted by ${staffUser.username} • Drop ID: ${drop.id}` })
         .setTimestamp();
+
+    if (thumbnail) embed.setThumbnail(thumbnail);
+    return embed;
 }
 
 export function buildRejectedEmbed(drop: DropRow, staffUser: User, reason?: string): EmbedBuilder {
@@ -65,7 +82,7 @@ export function buildRejectedEmbed(drop: DropRow, staffUser: User, reason?: stri
         .setColor(0xCC2222)
         .addFields(
             { name: 'Item', value: drop.item_name, inline: true },
-            ...(drop.gp_value > 0 ? [{ name: 'GP Value', value: `${drop.gp_value.toLocaleString()} GP`, inline: true }] : []),
+            { name: 'GP Value', value: valueDisplay(drop), inline: true },
         );
 
     if (reason) {
