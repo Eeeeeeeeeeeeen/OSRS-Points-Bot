@@ -20,7 +20,8 @@ export async function checkAndNotifyRankUp(guild: Guild, discordId: string): Pro
     const qualifying = getQualifyingTier(user.total_points, user.joined_at, tiers);
 
     if (!qualifying) return;
-    if (member.roles.cache.has(qualifying.role_id)) return;
+    const atOrAbove = tiers.filter(t => t.min_points >= qualifying.min_points);
+    if (atOrAbove.some(t => member.roles.cache.has(t.role_id))) return;
 
     const rankUpChannel = guild.channels.cache.get(config.rankUpChannelId) as TextChannel | undefined;
     if (!rankUpChannel) {
