@@ -15,6 +15,7 @@ import { upsertUser } from '../database/queries/users';
 import { insertDrop, updateDropReviewMessage } from '../database/queries/drops';
 import { getItemOverride } from '../database/queries/itemOverrides';
 import { getCustomItem, searchCustomItems, getPartCountForParent } from '../database/queries/customItems';
+import { getTradeablePartsForParent } from '../database/queries/tradeableParts';
 import { getConfig } from '../database/queries/botConfig';
 import { buildReviewEmbed } from '../embeds/reviewEmbed';
 import { config } from '../config';
@@ -113,7 +114,18 @@ export const drop: Command = {
                             await interaction.editReply(`Could not fetch the price for **${parentName}**. Please try again.`);
                             return;
                         }
-                        const perPartGp = Math.floor(rawGp / partCount);
+                        const tradeableComponents = getTradeablePartsForParent(customItem.parent_ref!);
+                        let sumTradeableGp = 0;
+                        const tpResults = await Promise.allSettled(
+                            tradeableComponents.map(tc => getItemPrice(tc.ge_item_id)),
+                        );
+                        for (const r of tpResults) {
+                            if (r.status === 'fulfilled') {
+                                const best = getBestPrice(r.value);
+                                if (best !== null) sumTradeableGp += best;
+                            }
+                        }
+                        const perPartGp = Math.floor(Math.max(0, rawGp - sumTradeableGp) / partCount);
                         awardedPoints = calculatePoints(perPartGp, teamSize);
                         priceDisplay = `part of ${parentName}: ${perPartGp.toLocaleString()} GP`;
                     }
