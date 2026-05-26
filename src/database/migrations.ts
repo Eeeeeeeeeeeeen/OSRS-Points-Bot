@@ -117,6 +117,18 @@ const MIGRATIONS: string[] = [
         resolved_by  TEXT
     );
     `,
+    // 10 — tradeable components for composite item price formula
+    `
+    CREATE TABLE IF NOT EXISTS tradeable_parts (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        parent_ref   TEXT NOT NULL,
+        parent_name  TEXT NOT NULL,
+        ge_item_id   INTEGER NOT NULL,
+        ge_item_name TEXT NOT NULL,
+        created_at   INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+        UNIQUE(parent_ref, ge_item_id)
+    );
+    `,
 ];
 
 export function runMigrations(db: Database.Database): void {

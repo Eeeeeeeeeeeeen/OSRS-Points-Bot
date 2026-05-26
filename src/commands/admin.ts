@@ -16,6 +16,7 @@ import { getUserById, setUserPoints, adjustUserPoints, upsertUser } from '../dat
 import { getAllRankTiers, insertRankTier, deleteRankTier, getRankTierByRoleId } from '../database/queries/ranks';
 import { getItemOverride, setItemOverride, removeItemOverride, getAllItemOverrides } from '../database/queries/itemOverrides';
 import { getAllCustomItems, getCustomItem, searchCustomItems, upsertCustomItem, removeCustomItem, getPartCountForParent, CustomItemCategory } from '../database/queries/customItems';
+import { getAllTradeableParts, addTradeablePart, removeTradeablePart, getTradeablePartsForParent, TradeablePartRow } from '../database/queries/tradeableParts';
 import { getConfig, setConfig } from '../database/queries/botConfig';
 import { getAcceptedDropsForUser } from '../database/queries/drops';
 import { getItemMapping, searchItems, findItemById } from '../services/osrsApi';
@@ -189,6 +190,32 @@ export const admin: Command = {
                         .setMinValue(1),
                 ),
         )
+        .addSubcommand(sub =>
+            sub.setName('addtradeablecomponent')
+                .setDescription('Register a tradeable GE component of a combined item (used for the untradeable price formula)')
+                .addStringOption(opt =>
+                    opt.setName('parent')
+                        .setDescription('The combined/final item (GE item) — start typing to search')
+                        .setRequired(true)
+                        .setAutocomplete(true),
+                )
+                .addStringOption(opt =>
+                    opt.setName('component')
+                        .setDescription('The tradeable GE component — start typing to search')
+                        .setRequired(true)
+                        .setAutocomplete(true),
+                ),
+        )
+        .addSubcommand(sub =>
+            sub.setName('removetradeablecomponent')
+                .setDescription('Remove a registered tradeable component link')
+                .addStringOption(opt =>
+                    opt.setName('entry')
+                        .setDescription('Entry to remove — start typing to search')
+                        .setRequired(true)
+                        .setAutocomplete(true),
+                ),
+        )
         .addSubcommandGroup(group =>
             group.setName('induction')
                 .setDescription('Configure the trial membership induction system')
@@ -256,16 +283,46 @@ export const admin: Command = {
             case 'removeitempoints': await handleRemoveItemPoints(interaction); break;
             case 'listitempoints':   await handleListItemPoints(interaction);   break;
             case 'removedrops':      await handleRemoveDrops(interaction);      break;
-            case 'addcustomitem':      await handleAddCustomItem(interaction);      break;
-            case 'removecustomitem':   await handleRemoveCustomItem(interaction);   break;
-            case 'listcustomitems':    await handleListCustomItems(interaction);    break;
-            case 'setcategorypoints':  await handleSetCategoryPoints(interaction);  break;
+            case 'addcustomitem':           await handleAddCustomItem(interaction);           break;
+            case 'removecustomitem':        await handleRemoveCustomItem(interaction);        break;
+            case 'listcustomitems':         await handleListCustomItems(interaction);         break;
+            case 'setcategorypoints':       await handleSetCategoryPoints(interaction);       break;
+            case 'addtradeablecomponent':   await handleAddTradeableComponent(interaction);   break;
+            case 'removetradeablecomponent': await handleRemoveTradeableComponent(interaction); break;
         }
     },
 
     async autocomplete(interaction: AutocompleteInteraction): Promise<void> {
         const sub = interaction.options.getSubcommand();
-        if (sub !== 'setitempoints' && sub !== 'removeitempoints' && sub !== 'removecustomitem' && sub !== 'addcustomitem') return;
+        const newComponentSubs = ['addtradeablecomponent', 'removetradeablecomponent'];
+        if (sub !== 'setitempoints' && sub !== 'removeitempoints' && sub !== 'removecustomitem' && sub !== 'addcustomitem' && !newComponentSubs.includes(sub)) return;
+
+        if (sub === 'addtradeablecomponent') {
+            const focusedOpt = interaction.options.getFocused(true);
+            if (focusedOpt.value.length < 2) { await interaction.respond([]); return; }
+            try {
+                const items = await getItemMapping();
+                const results = searchItems(focusedOpt.value, items).slice(0, 25).map(i => ({ name: i.name, value: String(i.id) }));
+                await interaction.respond(results);
+            } catch {
+                await interaction.respond([]);
+            }
+            return;
+        }
+
+        if (sub === 'removetradeablecomponent') {
+            const focusedVal = interaction.options.getFocused().toLowerCase();
+            const all = getAllTradeableParts();
+            const matches = all
+                .filter(r =>
+                    r.ge_item_name.toLowerCase().includes(focusedVal) ||
+                    r.parent_name.toLowerCase().includes(focusedVal),
+                )
+                .slice(0, 25)
+                .map(r => ({ name: `${r.ge_item_name} [component of ${r.parent_name}]`, value: String(r.id) }));
+            await interaction.respond(matches);
+            return;
+        }
 
         const focused = interaction.options.getFocused();
 
@@ -755,11 +812,17 @@ async function handleListCustomItems(interaction: ChatInputCommandInteraction): 
             } else if (ref.startsWith('custom:')) {
                 parentPts = getCustomItem(parseInt(ref.split(':')[1], 10))?.points ?? null;
             }
+            const tradeableComponents = ref.startsWith('ge:') ? getTradeablePartsForParent(ref) : [];
             const perPart = parentPts !== null ? Math.floor(parentPts / names.length) : null;
+            const tradeableStr = tradeableComponents.length > 0 ? `, ${tradeableComponents.length} tradeable component(s)` : '';
             const heading = perPart !== null
-                ? `Parts of ${parentDisplayName} (${names.length} parts, ${perPart} pts each)`
-                : `Parts of ${parentDisplayName} (${names.length} parts, pts from GE price)`;
-            addChunkedFields(embed, heading, names.map(n => `• ${n}`));
+                ? `Parts of ${parentDisplayName} (${names.length} untradeable${tradeableStr}, ${perPart} pts each)`
+                : `Parts of ${parentDisplayName} (${names.length} untradeable${tradeableStr}, pts from GE formula)`;
+            const lines = [
+                ...names.map(n => `• ${n}`),
+                ...tradeableComponents.map(tc => `• ${tc.ge_item_name} [tradeable GE component]`),
+            ];
+            addChunkedFields(embed, heading, lines);
         }
     }
 
@@ -769,6 +832,52 @@ async function handleListCustomItems(interaction: ChatInputCommandInteraction): 
     }
 
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+}
+
+async function handleAddTradeableComponent(interaction: ChatInputCommandInteraction): Promise<void> {
+    const parentStr = interaction.options.getString('parent', true);
+    const componentStr = interaction.options.getString('component', true);
+
+    const parentId = parseInt(parentStr, 10);
+    const componentId = parseInt(componentStr, 10);
+    if (isNaN(parentId) || isNaN(componentId)) {
+        await interaction.reply({ content: 'Please select items from the autocomplete list.', flags: MessageFlags.Ephemeral });
+        return;
+    }
+
+    const items = await getItemMapping().catch(() => []);
+    const parentData = findItemById(parentId, items);
+    const componentData = findItemById(componentId, items);
+
+    if (!parentData || !componentData) {
+        await interaction.reply({ content: 'Could not find one or both items. Please select from the autocomplete list.', flags: MessageFlags.Ephemeral });
+        return;
+    }
+
+    addTradeablePart(`ge:${parentId}`, parentData.name, componentId, componentData.name);
+
+    await interaction.reply({
+        content: `**${componentData.name}** registered as a tradeable component of **${parentData.name}**. Its GE price will be subtracted when calculating untradeable part values.`,
+        flags: MessageFlags.Ephemeral,
+    });
+}
+
+async function handleRemoveTradeableComponent(interaction: ChatInputCommandInteraction): Promise<void> {
+    const idStr = interaction.options.getString('entry', true);
+    const id = parseInt(idStr, 10);
+
+    if (isNaN(id)) {
+        await interaction.reply({ content: 'Please select an entry from the autocomplete list.', flags: MessageFlags.Ephemeral });
+        return;
+    }
+
+    const removed = removeTradeablePart(id);
+    await interaction.reply({
+        content: removed
+            ? `Removed **${removed.ge_item_name}** as a tradeable component of **${removed.parent_name}**.`
+            : 'No entry found with that ID.',
+        flags: MessageFlags.Ephemeral,
+    });
 }
 
 async function handleRemoveDrops(interaction: ChatInputCommandInteraction): Promise<void> {
