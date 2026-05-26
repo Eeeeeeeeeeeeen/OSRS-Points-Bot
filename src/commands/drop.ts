@@ -73,6 +73,7 @@ export const drop: Command = {
         let gpValue: number;
         let awardedPoints: number;
         let priceDisplay: string;
+        let itemSuffix: string | undefined;
 
         if (itemValue.startsWith('custom:')) {
             const customId = parseInt(itemValue.split(':')[1], 10);
@@ -102,7 +103,8 @@ export const drop: Command = {
                         // Admin-set fixed points: divide points then split by team
                         const perPartPoints = Math.floor(override.points / partCount);
                         awardedPoints = Math.max(1, Math.floor(perPartPoints / teamSize));
-                        priceDisplay = `part of ${parentName}: ${perPartPoints} pts`;
+                        itemSuffix = `part of ${parentName}`;
+                        priceDisplay = `${perPartPoints} pts`;
                     } else {
                         // Live GE price: divide GP first so the cap applies per-part
                         let rawGp: number | null = null;
@@ -127,7 +129,8 @@ export const drop: Command = {
                         }
                         const perPartGp = Math.floor(Math.max(0, rawGp - sumTradeableGp) / partCount);
                         awardedPoints = calculatePoints(perPartGp, teamSize);
-                        priceDisplay = `part of ${parentName}: ${perPartGp.toLocaleString()} GP`;
+                        itemSuffix = `part of ${parentName}`;
+                        priceDisplay = `${perPartGp.toLocaleString()} GP`;
                     }
                 } else if (customItem.parent_ref.startsWith('custom:')) {
                     const parentId = parseInt(customItem.parent_ref.split(':')[1], 10);
@@ -141,7 +144,8 @@ export const drop: Command = {
                     }
                     const perPartPoints = Math.floor(parentPts / partCount);
                     awardedPoints = Math.max(1, Math.floor(perPartPoints / teamSize));
-                    priceDisplay = `part of ${parentName}: ${perPartPoints} pts`;
+                    itemSuffix = `part of ${parentName}`;
+                    priceDisplay = `${perPartPoints} pts`;
                 } else {
                     await interaction.editReply('Invalid parent item reference. Please contact an admin.');
                     return;
@@ -226,12 +230,13 @@ export const drop: Command = {
             return;
         }
 
-        const { embed, row } = buildReviewEmbed(drop, interaction.user, teammates);
+        const { embed, row } = buildReviewEmbed(drop, interaction.user, teammates, priceDisplay, itemSuffix);
         const reviewMessage = await reviewChannel.send({ embeds: [embed], components: [row] });
         updateDropReviewMessage(drop.id, reviewChannel.id, reviewMessage.id);
 
+        const fullPriceDisplay = itemSuffix ? `${itemSuffix}: ${priceDisplay}` : priceDisplay;
         await interaction.editReply(
-            `Your drop of **${itemName}** (${priceDisplay}) has been submitted for review! ` +
+            `Your drop of **${itemName}** (${fullPriceDisplay}) has been submitted for review! ` +
             `Each team member will receive **${awardedPoints}** point(s) upon approval.`,
         );
     },
