@@ -7,16 +7,17 @@ import {
 } from 'discord.js';
 import { DropRow } from '../types/db';
 
-export function buildReviewEmbed(drop: DropRow, submitter: User, teammates: User[]) {
+export function buildReviewEmbed(drop: DropRow, submitter: User, teammates: User[], priceDisplay?: string, itemSuffix?: string) {
     const team = [submitter, ...teammates].map(u => `<@${u.id}>`).join(', ');
+    const itemDisplay = itemSuffix ? `${drop.item_name} (${itemSuffix})` : drop.item_name;
 
     const embed = new EmbedBuilder()
         .setTitle('Drop Submission — Pending Review')
         .setColor(0xFFAA00)
         .setImage(drop.screenshot_url)
         .addFields(
-            { name: 'Item', value: drop.item_name, inline: true },
-            ...(drop.gp_value > 0 ? [{ name: 'GP Value', value: `${drop.gp_value.toLocaleString()} GP`, inline: true }] : []),
+            { name: 'Item', value: itemDisplay, inline: true },
+            { name: 'GP Value', value: priceDisplay ?? (drop.gp_value > 0 ? `${drop.gp_value.toLocaleString()} GP` : `${drop.awarded_points} pts`), inline: true },
             { name: 'Points Each', value: String(drop.awarded_points), inline: true },
             { name: 'Team', value: team, inline: false },
         )
