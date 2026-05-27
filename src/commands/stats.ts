@@ -19,37 +19,14 @@ export const stats: Command = {
             .setColor(0x00AAFF)
             .addFields(
                 // ── Overall ──────────────────────────────────────────
-                {
-                    name: 'Total Drops',
-                    value: s.totalDrops.toLocaleString(),
-                    inline: true,
-                },
-                {
-                    name: 'Total GP Logged',
-                    value: formatGp(s.totalGp),
-                    inline: true,
-                },
-                {
-                    name: 'Average Drop Value',
-                    value: s.avgDropGp > 0 ? formatGp(s.avgDropGp) : 'N/A',
-                    inline: true,
-                },
-                {
-                    name: 'Active Members',
-                    value: s.activeMembers.toLocaleString(),
-                    inline: true,
-                },
-                {
-                    name: 'Total Points Held',
-                    value: s.totalPointsHeld.toLocaleString(),
-                    inline: true,
-                },
-                {
-                    name: `Points Awarded (${monthName})`,
-                    value: s.pointsThisMonth.toLocaleString(),
-                    inline: true,
-                },
-                // ── This month ────────────────────────────────────────
+                // ── Overall ──────────────────────────────────────────
+                { name: 'Total Drops',                   value: s.totalDrops.toLocaleString(),                     inline: true },
+                { name: 'Total GP Logged',               value: formatGp(s.totalGp),                               inline: true },
+                { name: 'Average Drop Value',            value: s.avgDropGp > 0 ? formatGp(s.avgDropGp) : 'N/A',   inline: true },
+                { name: 'Active Members',                value: s.activeMembers.toLocaleString(),                   inline: true },
+                { name: 'Total Points Held',             value: s.totalPointsHeld.toLocaleString(),                 inline: true },
+                { name: `Points Awarded (${monthName})`, value: s.pointsThisMonth.toLocaleString(),                 inline: true },
+                // ── This Month ────────────────────────────────────────
                 {
                     name: `Top Earner (${monthName})`,
                     value: s.topPointsEarnerThisMonth
@@ -72,13 +49,23 @@ export const stats: Command = {
                     inline: true,
                 },
                 // ── Highlights ────────────────────────────────────────
+                // Filler fields (invisible) pad each pair to a full row of 3,
+                // keeping the two pairs on separate rows.
                 {
-                    name: 'Biggest Drop',
-                    value: s.biggestDrop
-                        ? `**${s.biggestDrop.item_name}** (${formatGp(s.biggestDrop.gp_value)}) by <@${s.biggestDrop.submitter_id}>`
+                    name: 'Biggest Solo Drop',
+                    value: s.biggestSoloDrop
+                        ? `**${s.biggestSoloDrop.item_name}** (${formatGp(s.biggestSoloDrop.gp_value)}) by <@${s.biggestSoloDrop.submitter_id}>`
                         : 'None yet',
-                    inline: false,
+                    inline: true,
                 },
+                {
+                    name: 'Biggest Team Drop',
+                    value: s.biggestTeamDrop
+                        ? `**${s.biggestTeamDrop.item_name}** (${formatGp(s.biggestTeamDrop.gp_value)}) — ${s.biggestTeamDrop.member_count} members`
+                        : 'None yet',
+                    inline: true,
+                },
+                { name: '​', value: '​', inline: true },
                 {
                     name: 'Most Common Drop',
                     value: s.topItem
@@ -87,19 +74,13 @@ export const stats: Command = {
                     inline: true,
                 },
                 {
-                    name: 'Biggest Team Drop',
-                    value: s.biggestTeamDrop
-                        ? `**${s.biggestTeamDrop.item_name}** — ${s.biggestTeamDrop.member_count} members`
-                        : 'None yet',
-                    inline: true,
-                },
-                {
                     name: 'Rarest Drop',
                     value: s.rarestDrop
                         ? `**${s.rarestDrop.item_name}** (${s.rarestDrop.gp_value > 0 ? formatGp(s.rarestDrop.gp_value) : 'custom'}) by <@${s.rarestDrop.submitter_id}>`
                         : 'None yet',
-                    inline: false,
+                    inline: true,
                 },
+                { name: '​', value: '​', inline: true },
             )
             .setTimestamp();
 

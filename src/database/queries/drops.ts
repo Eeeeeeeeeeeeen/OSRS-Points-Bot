@@ -85,10 +85,10 @@ export interface ClanStats {
     topPointsEarnerThisMonth: { discord_id: string; points: number } | null;
     topSoloDropperThisMonth: { discord_id: string; count: number } | null;
     // Highlights
-    biggestDrop: { item_name: string; gp_value: number; submitter_id: string } | null;
+    biggestSoloDrop: { item_name: string; gp_value: number; submitter_id: string } | null;
+    biggestTeamDrop: { item_name: string; gp_value: number; submitter_id: string; member_count: number } | null;
     topItem: { item_name: string; count: number } | null;
     mostTeamed: { discord_id: string; count: number } | null;
-    biggestTeamDrop: { item_name: string; member_count: number; submitter_id: string } | null;
     rarestDrop: { item_name: string; gp_value: number; submitter_id: string } | null;
 }
 
@@ -125,8 +125,9 @@ export function getClanStats(): ClanStats {
 
     const topPointsEarnerThisMonth = db.prepare(`
         SELECT discord_id, SUM(delta) as points
-        FROM user_point_log WHERE delta > 0 AND created_at >= ?
-        GROUP BY discord_id ORDER BY points DESC LIMIT 1
+        FROM user_point_log WHERE created_at >= ?
+        GROUP BY discord_id HAVING SUM(delta) > 0
+        ORDER BY points DESC LIMIT 1
     `).get(startOfMonth) as { discord_id: string; points: number } | undefined;
 
     const topSoloDropperThisMonth = db.prepare(`
@@ -140,9 +141,11 @@ export function getClanStats(): ClanStats {
     `).get(startOfMonth) as { discord_id: string; count: number } | undefined;
 
     // Highlights
-    const biggestDrop = db.prepare(`
+    const biggestSoloDrop = db.prepare(`
         SELECT item_name, gp_value, submitter_id
-        FROM drops WHERE status = 'accepted' AND gp_value > 0
+        FROM drops
+        WHERE status = 'accepted' AND gp_value > 0
+          AND id NOT IN (SELECT drop_id FROM drop_recipients GROUP BY drop_id HAVING COUNT(*) > 1)
         ORDER BY gp_value DESC LIMIT 1
     `).get() as { item_name: string; gp_value: number; submitter_id: string } | undefined;
 
@@ -162,12 +165,13 @@ export function getClanStats(): ClanStats {
     `).get() as { discord_id: string; count: number } | undefined;
 
     const biggestTeamDrop = db.prepare(`
-        SELECT d.item_name, d.submitter_id, COUNT(dr.discord_id) as member_count
+        SELECT d.item_name, d.gp_value, d.submitter_id, COUNT(dr.discord_id) as member_count
         FROM drops d
         JOIN drop_recipients dr ON dr.drop_id = d.id
-        WHERE d.status = 'accepted'
-        GROUP BY d.id ORDER BY member_count DESC LIMIT 1
-    `).get() as { item_name: string; submitter_id: string; member_count: number } | undefined;
+        WHERE d.status = 'accepted' AND d.gp_value > 0
+        GROUP BY d.id HAVING COUNT(dr.discord_id) > 1
+        ORDER BY d.gp_value DESC LIMIT 1
+    `).get() as { item_name: string; gp_value: number; submitter_id: string; member_count: number } | undefined;
 
     const rarestDrop = db.prepare(`
         SELECT item_name, gp_value, submitter_id
@@ -185,10 +189,10 @@ export function getClanStats(): ClanStats {
         pointsThisMonth,
         topPointsEarnerThisMonth: topPointsEarnerThisMonth ?? null,
         topSoloDropperThisMonth: topSoloDropperThisMonth ?? null,
-        biggestDrop: biggestDrop ?? null,
+        biggestSoloDrop: biggestSoloDrop ?? null,
+        biggestTeamDrop: biggestTeamDrop ?? null,
         topItem: topItem ?? null,
         mostTeamed: mostTeamed ?? null,
-        biggestTeamDrop: biggestTeamDrop ?? null,
         rarestDrop: rarestDrop ?? null,
     };
 }

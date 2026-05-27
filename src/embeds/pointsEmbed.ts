@@ -28,7 +28,8 @@ export function buildPointsEmbed(
 
     if (nextRank) {
         const needed = nextRank.min_points - user.total_points;
-        embed.addFields({ name: 'Next Rank', value: `${nextRank.name} (${needed} pts away)`, inline: true });
+        const progress = needed <= 0 ? 'eligible' : `${needed} pts away`;
+        embed.addFields({ name: 'Next Rank', value: `${nextRank.name} (${progress})`, inline: true });
     }
 
     embed.addFields({ name: 'Recent Drops', value: dropLines, inline: false });

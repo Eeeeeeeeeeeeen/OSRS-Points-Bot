@@ -34,16 +34,20 @@ export const points: Command = {
         }
 
         const tiers = getAllRankTiers(); // sorted min_points DESC
-        const daysInServer = (Date.now() - user.joined_at) / 86_400_000;
 
-        const currentRank = tiers.find(
-            (t: RankTierRow) => user.total_points >= t.min_points && daysInServer >= t.min_days,
-        ) ?? null;
+        // Current rank is whichever tier role the member actually holds on Discord,
+        // not what their points alone would qualify them for — this respects force-set ranks.
+        const currentRank = tiers.find(t => member.roles.cache.has(t.role_id)) ?? null;
 
-        const nextRank = tiers
-            .slice()
-            .reverse()
-            .find((t: RankTierRow) => user.total_points < t.min_points) ?? null;
+        // Next rank is the tier immediately above the one they currently hold.
+        // If unranked, it's the lowest configured tier.
+        let nextRank: RankTierRow | null = null;
+        if (currentRank) {
+            const idx = tiers.findIndex(t => t.role_id === currentRank.role_id);
+            nextRank = idx > 0 ? tiers[idx - 1] : null;
+        } else {
+            nextRank = tiers.length > 0 ? tiers[tiers.length - 1] : null;
+        }
 
         const recentDrops = getRecentDropsForUser(target.id);
 
