@@ -40,3 +40,12 @@ export function buildRankUpApprovedEmbed(member: GuildMember, tier: RankTierRow,
         .setFooter({ text: `Approved by ${approver.username}` })
         .setTimestamp();
 }
+
+export function buildRankUpCongratEmbed(member: GuildMember, tier: RankTierRow): EmbedBuilder {
+    return new EmbedBuilder()
+        .setTitle('🎉 Rank Up!')
+        .setColor(0xFFD700)
+        .setDescription(`Congratulations <@${member.id}> — promoted to **${tier.name}**!`)
+        .setThumbnail(member.user.displayAvatarURL())
+        .setTimestamp();
+}

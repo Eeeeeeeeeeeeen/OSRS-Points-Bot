@@ -1,8 +1,9 @@
-import { ButtonInteraction, GuildMember, MessageFlags } from 'discord.js';
+import { ButtonInteraction, GuildMember, MessageFlags, TextChannel } from 'discord.js';
 import { applyRankUp } from '../../services/rankService';
 import { getRankTierByRoleId } from '../../database/queries/ranks';
-import { buildRankUpApprovedEmbed } from '../../embeds/rankUpEmbed';
+import { buildRankUpApprovedEmbed, buildRankUpCongratEmbed } from '../../embeds/rankUpEmbed';
 import { hasStaffRole } from '../../utils/permissions';
+import { config } from '../../config';
 
 export async function handleApproveRankup(
     interaction: ButtonInteraction,
@@ -37,5 +38,10 @@ export async function handleApproveRankup(
         embeds: [buildRankUpApprovedEmbed(targetMember, tier, interaction.user)],
         components: [],
     });
+
+    const logChannel = guild.channels.cache.get(config.dropLogChannelId) as TextChannel | undefined;
+    if (logChannel) {
+        await logChannel.send({ embeds: [buildRankUpCongratEmbed(targetMember, tier)] });
+    }
 }
 

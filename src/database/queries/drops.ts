@@ -73,6 +73,126 @@ export function getDropRecipients(dropId: number): { discord_id: string; points:
         .all(dropId) as { discord_id: string; points: number }[];
 }
 
+export interface ClanStats {
+    // Overall
+    totalDrops: number;
+    totalGp: number;
+    avgDropGp: number;
+    activeMembers: number;
+    totalPointsHeld: number;
+    // This month
+    pointsThisMonth: number;
+    topPointsEarnerThisMonth: { discord_id: string; points: number } | null;
+    topSoloDropperThisMonth: { discord_id: string; count: number } | null;
+    // Highlights
+    biggestDrop: { item_name: string; gp_value: number; submitter_id: string } | null;
+    topItem: { item_name: string; count: number } | null;
+    mostTeamed: { discord_id: string; count: number } | null;
+    biggestTeamDrop: { item_name: string; member_count: number; submitter_id: string } | null;
+    rarestDrop: { item_name: string; gp_value: number; submitter_id: string } | null;
+}
+
+export function getClanStats(): ClanStats {
+    const db = getDb();
+
+    // Totals
+    const totals = db.prepare(`
+        SELECT COUNT(*) as total_drops, COALESCE(SUM(gp_value), 0) as total_gp
+        FROM drops WHERE status = 'accepted'
+    `).get() as { total_drops: number; total_gp: number };
+
+    const avgRow = db.prepare(`
+        SELECT COALESCE(ROUND(AVG(gp_value)), 0) as avg_gp
+        FROM drops WHERE status = 'accepted' AND gp_value > 0
+    `).get() as { avg_gp: number };
+
+    const activeMembers = (db.prepare(
+        'SELECT COUNT(*) as cnt FROM users WHERE total_points > 0',
+    ).get() as { cnt: number }).cnt;
+
+    const totalPointsHeld = (db.prepare(
+        'SELECT COALESCE(SUM(total_points), 0) as total FROM users',
+    ).get() as { total: number }).total;
+
+    // This month
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    const pointsThisMonth = (db.prepare(`
+        SELECT COALESCE(SUM(delta), 0) as points
+        FROM user_point_log WHERE delta > 0 AND created_at >= ?
+    `).get(startOfMonth) as { points: number }).points;
+
+    const topPointsEarnerThisMonth = db.prepare(`
+        SELECT discord_id, SUM(delta) as points
+        FROM user_point_log WHERE delta > 0 AND created_at >= ?
+        GROUP BY discord_id ORDER BY points DESC LIMIT 1
+    `).get(startOfMonth) as { discord_id: string; points: number } | undefined;
+
+    const topSoloDropperThisMonth = db.prepare(`
+        SELECT d.submitter_id as discord_id, COUNT(*) as count
+        FROM drops d
+        WHERE d.status = 'accepted' AND d.submitted_at >= ?
+          AND d.id NOT IN (
+              SELECT drop_id FROM drop_recipients GROUP BY drop_id HAVING COUNT(*) > 1
+          )
+        GROUP BY d.submitter_id ORDER BY count DESC LIMIT 1
+    `).get(startOfMonth) as { discord_id: string; count: number } | undefined;
+
+    // Highlights
+    const biggestDrop = db.prepare(`
+        SELECT item_name, gp_value, submitter_id
+        FROM drops WHERE status = 'accepted' AND gp_value > 0
+        ORDER BY gp_value DESC LIMIT 1
+    `).get() as { item_name: string; gp_value: number; submitter_id: string } | undefined;
+
+    const topItem = db.prepare(`
+        SELECT item_name, COUNT(*) as count
+        FROM drops WHERE status = 'accepted'
+        GROUP BY LOWER(item_name) ORDER BY count DESC LIMIT 1
+    `).get() as { item_name: string; count: number } | undefined;
+
+    const mostTeamed = db.prepare(`
+        SELECT dr.discord_id, COUNT(*) as count
+        FROM drop_recipients dr
+        WHERE dr.drop_id IN (
+            SELECT drop_id FROM drop_recipients GROUP BY drop_id HAVING COUNT(*) > 1
+        )
+        GROUP BY dr.discord_id ORDER BY count DESC LIMIT 1
+    `).get() as { discord_id: string; count: number } | undefined;
+
+    const biggestTeamDrop = db.prepare(`
+        SELECT d.item_name, d.submitter_id, COUNT(dr.discord_id) as member_count
+        FROM drops d
+        JOIN drop_recipients dr ON dr.drop_id = d.id
+        WHERE d.status = 'accepted'
+        GROUP BY d.id ORDER BY member_count DESC LIMIT 1
+    `).get() as { item_name: string; submitter_id: string; member_count: number } | undefined;
+
+    const rarestDrop = db.prepare(`
+        SELECT item_name, gp_value, submitter_id
+        FROM drops WHERE status = 'accepted'
+        GROUP BY LOWER(item_name) HAVING COUNT(*) = 1
+        ORDER BY gp_value DESC LIMIT 1
+    `).get() as { item_name: string; gp_value: number; submitter_id: string } | undefined;
+
+    return {
+        totalDrops: totals.total_drops,
+        totalGp: totals.total_gp,
+        avgDropGp: avgRow.avg_gp,
+        activeMembers,
+        totalPointsHeld,
+        pointsThisMonth,
+        topPointsEarnerThisMonth: topPointsEarnerThisMonth ?? null,
+        topSoloDropperThisMonth: topSoloDropperThisMonth ?? null,
+        biggestDrop: biggestDrop ?? null,
+        topItem: topItem ?? null,
+        mostTeamed: mostTeamed ?? null,
+        biggestTeamDrop: biggestTeamDrop ?? null,
+        rarestDrop: rarestDrop ?? null,
+    };
+}
+
 export function reverseDrop(dropId: number, staffId: string): void {
     const db = getDb();
     db.transaction(() => {

@@ -29,3 +29,14 @@ export function updateTrialStatus(id: number, status: 'approved' | 'denied', res
         WHERE id = ?
     `).run(status, resolvedBy, id);
 }
+
+export function getReferralLeaderboard(limit = 10): { discord_id: string; count: number }[] {
+    return getDb().prepare(`
+        SELECT referrer_id as discord_id, COUNT(*) as count
+        FROM trials
+        WHERE status = 'approved' AND referrer_id IS NOT NULL
+        GROUP BY referrer_id
+        ORDER BY count DESC
+        LIMIT ?
+    `).all(limit) as { discord_id: string; count: number }[];
+}
