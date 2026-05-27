@@ -1,9 +1,10 @@
 import { EmbedBuilder, User } from 'discord.js';
 import { DropRow } from '../types/db';
 import { formatGp } from '../utils/formatGp';
+import { buildTeamDisplay } from '../utils/teamDisplay';
 
 export function buildDropLogEmbed(drop: DropRow, submitter: User, teammates: User[]): EmbedBuilder {
-    const team = [submitter, ...teammates].map(u => `<@${u.id}>`).join(', ');
+    const team = buildTeamDisplay(submitter, teammates, drop.team_size);
     const gpValue = drop.gp_value > 0 ? formatGp(drop.gp_value) : `${drop.awarded_points} pts`;
 
     const embed = new EmbedBuilder()

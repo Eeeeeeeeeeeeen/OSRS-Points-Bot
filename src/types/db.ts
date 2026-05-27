@@ -14,6 +14,7 @@ export interface DropRow {
     gp_value: number;
     awarded_points: number;
     teammate_ids: string; // JSON array string
+    team_size: number | null; // effective team size (incl. anonymous); null = legacy (= recipient count)
     screenshot_url: string;
     status: 'pending' | 'accepted' | 'rejected';
     review_channel_id: string | null;

@@ -129,6 +129,8 @@ const MIGRATIONS: string[] = [
         UNIQUE(parent_ref, ge_item_id)
     );
     `,
+    // 11 — store effective team size for anonymous-member splits
+    `ALTER TABLE drops ADD COLUMN team_size INTEGER;`,
 ];
 
 export function runMigrations(db: Database.Database): void {

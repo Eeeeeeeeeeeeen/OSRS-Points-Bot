@@ -403,7 +403,7 @@ export const admin: Command = {
     },
 };
 
-async function handleEventPoints(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleEventPoints(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const mode = interaction.options.getString('mode', true) as 'add' | 'deduct';
@@ -463,7 +463,7 @@ async function handleEventPoints(interaction: ChatInputCommandInteraction): Prom
     );
 }
 
-async function handleSetPoints(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleSetPoints(interaction: ChatInputCommandInteraction): Promise<void> {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const target = interaction.options.getUser('user', true);
@@ -626,7 +626,7 @@ async function handleRemoveItemPoints(interaction: ChatInputCommandInteraction):
     });
 }
 
-async function handleListItemPoints(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleListItemPoints(interaction: ChatInputCommandInteraction): Promise<void> {
     const overrides = getAllItemOverrides();
 
     if (overrides.length === 0) {
@@ -766,7 +766,7 @@ function addChunkedFields(embed: EmbedBuilder, heading: string, lines: string[])
     });
 }
 
-async function handleListCustomItems(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleListCustomItems(interaction: ChatInputCommandInteraction): Promise<void> {
     const items = getAllCustomItems();
 
     const embed = new EmbedBuilder()

@@ -8,14 +8,15 @@ interface InsertDropParams {
     gpValue: number;
     awardedPoints: number;
     teammateIds: string[];
+    teamSize: number;
     screenshotUrl: string;
 }
 
 export function insertDrop(params: InsertDropParams): DropRow {
     const db = getDb();
     const result = db.prepare(`
-        INSERT INTO drops (submitter_id, item_name, item_id, gp_value, awarded_points, teammate_ids, screenshot_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO drops (submitter_id, item_name, item_id, gp_value, awarded_points, teammate_ids, team_size, screenshot_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
         params.submitterId,
         params.itemName,
@@ -23,6 +24,7 @@ export function insertDrop(params: InsertDropParams): DropRow {
         params.gpValue,
         params.awardedPoints,
         JSON.stringify(params.teammateIds),
+        params.teamSize,
         params.screenshotUrl,
     );
     return getDropById(result.lastInsertRowid as number)!;
