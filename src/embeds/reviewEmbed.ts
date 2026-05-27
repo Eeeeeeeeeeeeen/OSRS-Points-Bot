@@ -7,6 +7,7 @@ import {
 } from 'discord.js';
 import { DropRow } from '../types/db';
 import { formatGp } from '../utils/formatGp';
+import { buildTeamDisplay } from '../utils/teamDisplay';
 
 function itemThumbnail(itemId: number | null): string | null {
     return itemId ? `https://static.runelite.net/cache/item/icon/${itemId}.png` : null;
@@ -18,7 +19,7 @@ function valueDisplay(drop: DropRow, override?: string): string {
 }
 
 export function buildReviewEmbed(drop: DropRow, submitter: User, teammates: User[], priceDisplay?: string, itemSuffix?: string) {
-    const team = [submitter, ...teammates].map(u => `<@${u.id}>`).join(', ');
+    const team = buildTeamDisplay(submitter, teammates, drop.team_size);
     const itemDisplay = itemSuffix ? `${drop.item_name} (${itemSuffix})` : drop.item_name;
     const thumbnail = itemThumbnail(drop.item_id);
 

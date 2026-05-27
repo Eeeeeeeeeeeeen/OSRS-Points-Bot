@@ -46,7 +46,17 @@ export const drop: Command = {
         .addUserOption(opt => opt.setName('teammate2').setDescription('Team member').setRequired(false))
         .addUserOption(opt => opt.setName('teammate3').setDescription('Team member').setRequired(false))
         .addUserOption(opt => opt.setName('teammate4').setDescription('Team member').setRequired(false))
-        .addUserOption(opt => opt.setName('teammate5').setDescription('Team member').setRequired(false)),
+        .addUserOption(opt => opt.setName('teammate5').setDescription('Team member').setRequired(false))
+        .addUserOption(opt => opt.setName('teammate6').setDescription('Team member').setRequired(false))
+        .addUserOption(opt => opt.setName('teammate7').setDescription('Team member').setRequired(false))
+        .addUserOption(opt => opt.setName('teammate8').setDescription('Team member').setRequired(false))
+        .addUserOption(opt => opt.setName('teammate9').setDescription('Team member').setRequired(false))
+        .addIntegerOption(opt =>
+            opt.setName('team_size')
+                .setDescription('Total team size including non-clan members (used to split the drop value)')
+                .setRequired(false)
+                .setMinValue(1),
+        ),
 
     async execute(interaction: ChatInputCommandInteraction): Promise<void> {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -60,14 +70,24 @@ export const drop: Command = {
         const screenshot = interaction.options.getAttachment('screenshot', true);
 
         const teammates: User[] = [];
-        for (let i = 1; i <= 5; i++) {
+        for (let i = 1; i <= 9; i++) {
             const tm = interaction.options.getUser(`teammate${i}`);
             if (tm && tm.id !== interaction.user.id && !teammates.find(t => t.id === tm.id)) {
                 teammates.push(tm);
             }
         }
 
-        const teamSize = 1 + teammates.length;
+        const registeredCount = 1 + teammates.length;
+        const teamSizeOption = interaction.options.getInteger('team_size');
+
+        if (teamSizeOption !== null && teamSizeOption < registeredCount) {
+            await interaction.editReply(
+                `Team size (${teamSizeOption}) cannot be less than the number of tagged team members (${registeredCount}).`,
+            );
+            return;
+        }
+
+        const effectiveTeamSize = teamSizeOption ?? registeredCount;
 
         let itemName: string;
         let itemId: number | null;
@@ -103,7 +123,7 @@ export const drop: Command = {
                     if (override) {
                         // Admin-set fixed points: divide points then split by team
                         const perPartPoints = Math.floor(override.points / partCount);
-                        awardedPoints = Math.max(1, Math.floor(perPartPoints / teamSize));
+                        awardedPoints = Math.max(1, Math.floor(perPartPoints / effectiveTeamSize));
                         itemSuffix = `part of ${parentName}`;
                         priceDisplay = `${perPartPoints} pts`;
                     } else {
@@ -129,7 +149,7 @@ export const drop: Command = {
                             }
                         }
                         const perPartGp = Math.floor(Math.max(0, rawGp - sumTradeableGp) / partCount);
-                        awardedPoints = calculatePoints(perPartGp, teamSize);
+                        awardedPoints = calculatePoints(perPartGp, effectiveTeamSize);
                         itemSuffix = `part of ${parentName}`;
                         priceDisplay = formatGp(perPartGp);
                     }
@@ -144,7 +164,7 @@ export const drop: Command = {
                         return;
                     }
                     const perPartPoints = Math.floor(parentPts / partCount);
-                    awardedPoints = Math.max(1, Math.floor(perPartPoints / teamSize));
+                    awardedPoints = Math.max(1, Math.floor(perPartPoints / effectiveTeamSize));
                     itemSuffix = `part of ${parentName}`;
                     priceDisplay = `${perPartPoints} pts`;
                 } else {
@@ -164,7 +184,7 @@ export const drop: Command = {
                     await interaction.editReply(`**${customItem.name}** has no points set. ${hint}`);
                     return;
                 }
-                awardedPoints = Math.max(1, Math.floor(basePoints / teamSize));
+                awardedPoints = Math.max(1, Math.floor(basePoints / effectiveTeamSize));
                 priceDisplay = `custom item: ${basePoints} pts total`;
             }
         } else {
@@ -183,7 +203,7 @@ export const drop: Command = {
 
             if (override) {
                 gpValue = 0;
-                awardedPoints = Math.max(1, Math.floor(override.points / teamSize));
+                awardedPoints = Math.max(1, Math.floor(override.points / effectiveTeamSize));
                 priceDisplay = `fixed override: ${override.points} pts total`;
             } else {
                 let priceData;
@@ -201,7 +221,7 @@ export const drop: Command = {
                 }
 
                 gpValue = fetchedPrice;
-                awardedPoints = calculatePoints(gpValue, teamSize);
+                awardedPoints = calculatePoints(gpValue, effectiveTeamSize);
                 priceDisplay = formatGp(gpValue);
             }
         }
@@ -222,6 +242,7 @@ export const drop: Command = {
             gpValue,
             awardedPoints,
             teammateIds: teammates.map(t => t.id),
+            teamSize: effectiveTeamSize,
             screenshotUrl: screenshot.url,
         });
 
@@ -236,9 +257,13 @@ export const drop: Command = {
         updateDropReviewMessage(drop.id, reviewChannel.id, reviewMessage.id);
 
         const fullPriceDisplay = itemSuffix ? `${itemSuffix}: ${priceDisplay}` : priceDisplay;
+        const anonymousCount = effectiveTeamSize - registeredCount;
+        const teamSuffix = anonymousCount > 0
+            ? ` Split across ${effectiveTeamSize} total (${anonymousCount} anonymous).`
+            : '';
         await interaction.editReply(
             `Your drop of **${itemName}** (${fullPriceDisplay}) has been submitted for review! ` +
-            `Each team member will receive **${awardedPoints}** point(s) upon approval.`,
+            `Each team member will receive **${awardedPoints}** point(s) upon approval.${teamSuffix}`,
         );
     },
 
