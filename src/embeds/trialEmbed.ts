@@ -21,6 +21,10 @@ export function buildTrialEmbed(
 
     embed.addFields({ name: 'Started At', value: `<t:${Math.floor(trial.created_at / 1000)}:F>`, inline: false });
 
+    if (trial.condition) {
+        embed.addFields({ name: '📋 Trial Condition', value: trial.condition, inline: false });
+    }
+
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
             .setCustomId(`approve_trial:${trial.id}`)

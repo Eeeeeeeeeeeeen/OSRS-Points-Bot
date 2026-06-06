@@ -5,6 +5,7 @@ import {
     TextChannel,
     ThreadAutoArchiveDuration,
     ChannelType,
+    EmbedBuilder,
 } from 'discord.js';
 import { Command } from '../types/command';
 import { hasStaffRole } from '../utils/permissions';
@@ -30,6 +31,11 @@ export const createThread: Command = {
             opt.setName('referral')
                 .setDescription('The member who referred this user (receives points on approval)')
                 .setRequired(false)
+        )
+        .addStringOption(opt =>
+            opt.setName('condition')
+                .setDescription('A condition the trial member must pass to be approved')
+                .setRequired(false)
         ),
 
     async execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -53,6 +59,7 @@ export const createThread: Command = {
 
         const targetUser = interaction.options.getUser('user', true);
         const referralUser = interaction.options.getUser('referral');
+        const condition = interaction.options.getString('condition');
 
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -84,7 +91,7 @@ export const createThread: Command = {
 
         upsertUser(targetUser, member.joinedTimestamp ?? Date.now());
 
-        const trialId = insertTrial(targetUser.id, referralUser?.id ?? null, thread.id, interaction.user.id);
+        const trialId = insertTrial(targetUser.id, referralUser?.id ?? null, thread.id, interaction.user.id, condition);
         const trial = getTrialById(trialId)!;
 
         // Add trial member and all staff to the private thread
@@ -105,6 +112,16 @@ export const createThread: Command = {
             .replace('{user}', `<@${targetUser.id}>`)
             .replace('{staff}', `<@&${config.staffRoleId}>`);
         await thread.send(welcomeMessage);
+
+        if (condition) {
+            const conditionEmbed = new EmbedBuilder()
+                .setTitle('📋 Trial Condition')
+                .setDescription(condition)
+                .setColor(0xFFD700)
+                .setFooter({ text: 'You must meet this condition to be approved as a full member.' });
+            const conditionMessage = await thread.send({ embeds: [conditionEmbed] });
+            await conditionMessage.pin();
+        }
 
         await interaction.editReply({ content: `Trial thread created: ${thread.url}` });
     },

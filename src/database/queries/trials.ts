@@ -6,11 +6,12 @@ export function insertTrial(
     referrerId: string | null,
     threadId: string,
     createdBy: string,
+    condition: string | null = null,
 ): number {
     const result = getDb().prepare(`
-        INSERT INTO trials (discord_id, referrer_id, thread_id, created_by)
-        VALUES (?, ?, ?, ?)
-    `).run(discordId, referrerId, threadId, createdBy);
+        INSERT INTO trials (discord_id, referrer_id, thread_id, created_by, condition)
+        VALUES (?, ?, ?, ?, ?)
+    `).run(discordId, referrerId, threadId, createdBy, condition);
     return Number(result.lastInsertRowid);
 }
 

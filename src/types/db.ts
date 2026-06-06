@@ -58,4 +58,5 @@ export interface TrialRow {
     created_at: number;
     resolved_at: number | null;
     resolved_by: string | null;
+    condition: string | null;
 }

@@ -131,6 +131,8 @@ const MIGRATIONS: string[] = [
     `,
     // 11 — store effective team size for anonymous-member splits
     `ALTER TABLE drops ADD COLUMN team_size INTEGER;`,
+    // 12 — trial pass condition
+    `ALTER TABLE trials ADD COLUMN condition TEXT;`,
 ];
 
 export function runMigrations(db: Database.Database): void {

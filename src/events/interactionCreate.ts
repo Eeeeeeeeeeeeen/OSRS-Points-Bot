@@ -7,6 +7,7 @@ import { handleApproveRankup } from '../interactions/buttons/approveRankup';
 import { handleConfirmRemoveDrop, handleCancelRemoveDrop } from '../interactions/buttons/confirmRemoveDrop';
 import { handleApproveTrial } from '../interactions/buttons/approveTrial';
 import { handleDenyTrial } from '../interactions/buttons/denyTrial';
+import { handleLeaderboardNav } from '../interactions/buttons/leaderboardNav';
 import { handleModifyDropSubmit } from '../interactions/modals/modifyDropSubmit';
 import { handleRejectDropSubmit } from '../interactions/modals/rejectDropSubmit';
 import { handleDenyTrialSubmit } from '../interactions/modals/denyTrialSubmit';
@@ -59,6 +60,9 @@ export function registerInteractionCreate(client: Client, commands: Map<string, 
                         break;
                     case 'deny_trial':
                         await handleDenyTrial(interaction, parseInt(parts[1], 10));
+                        break;
+                    case 'leaderboard_nav':
+                        await handleLeaderboardNav(interaction, parseInt(parts[1], 10));
                         break;
                 }
                 return;
