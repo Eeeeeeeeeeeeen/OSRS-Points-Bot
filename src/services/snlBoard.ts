@@ -9,7 +9,7 @@ export type ParseResult =
     | { ok: false; errors: string[] };
 
 interface RawTransition { id?: unknown; start?: unknown; end?: unknown }
-interface RawSquare { square?: unknown; item?: unknown; items?: unknown; quantity?: unknown }
+interface RawSquare { square?: unknown; item?: unknown; items?: unknown; quantity?: unknown; label?: unknown }
 
 const ITEM_REF = /^(ge|custom):\d+$/;
 
@@ -141,7 +141,16 @@ export async function parseBoard(raw: string): Promise<ParseResult> {
                 quantity = s.quantity;
             }
 
-            squares.push({ square: s.square, items, quantity });
+            let displayLabel: string | undefined;
+            if (s.label !== undefined) {
+                if (typeof s.label !== 'string' || !s.label.trim()) {
+                    errors.push(`${label} (square ${s.square}): "label" must be a non-empty string, e.g. "Slayer Uniques".`);
+                    return;
+                }
+                displayLabel = s.label.trim();
+            }
+
+            squares.push({ square: s.square, items, quantity, ...(displayLabel ? { label: displayLabel } : {}) });
         });
     }
 
@@ -291,6 +300,11 @@ export function requirementIcon(req: SnlSquare): string | null {
 }
 
 export function describeRequirement(req: SnlSquare): string {
+    // A label replaces the item list outright — squares that accept dozens of drops would
+    // otherwise blow past Discord's field limits.
+    if (req.label) {
+        return req.quantity > 1 ? `${req.quantity}× **${req.label}**` : `**${req.label}**`;
+    }
     const names = req.items.map(i => `**${i.name || i.ref}**`);
     const list = names.length === 1 ? names[0] : `any of ${names.join(', ')}`;
     return req.quantity > 1 ? `${req.quantity}× ${list}` : list;

@@ -10,7 +10,7 @@
     { "square": 8,  "items": ["ge:11826", "ge:11828", "ge:11830"], "quantity": 2 },
     { "square": 11, "items": ["ge:11828"], "quantity": 1 },
     { "square": 12, "items": ["ge:11235", "ge:12924"], "quantity": 3 },
-    { "square": 14, "items": ["ge:11802", "ge:11804", "ge:11806", "ge:11808"], "quantity": 1 },
+    { "square": 14, "items": ["ge:11802", "ge:11804", "ge:11806", "ge:11808"], "quantity": 1, "label": "Any Godsword blade" },
     { "square": 17, "items": ["ge:12924"], "quantity": 1 },
     { "square": 20, "items": ["ge:11785"], "quantity": 1 },
     { "square": 21, "items": ["ge:13652"], "quantity": 1 },

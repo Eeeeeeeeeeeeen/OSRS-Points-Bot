@@ -13,6 +13,9 @@ export interface SnlSquare {
     // of the same one — 3× the same item, or one each of three, both complete a "3".
     items: SnlSquareItem[];
     quantity: number;
+    // Optional display name standing in for the whole item list wherever the square is
+    // described, e.g. "Slayer Uniques" for a square that accepts thirty different drops.
+    label?: string;
 }
 
 export interface SnlTransition {
