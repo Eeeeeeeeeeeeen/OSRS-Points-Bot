@@ -1,0 +1,31 @@
+{
+  "name": "Avid Snakes & Ladders",
+  "finalSquare": 30,
+  "overshoot": "win",
+  "squares": [
+    { "square": 1,  "items": ["ge:4151"], "quantity": 1 },
+    { "square": 2,  "items": ["ge:11840", "ge:11832", "ge:11834"], "quantity": 1 },
+    { "square": 5,  "items": ["ge:13576"], "quantity": 1 },
+    { "square": 7,  "items": ["ge:11832", "ge:11834"], "quantity": 2 },
+    { "square": 8,  "items": ["ge:11826", "ge:11828", "ge:11830"], "quantity": 2 },
+    { "square": 11, "items": ["ge:11828"], "quantity": 1 },
+    { "square": 12, "items": ["ge:11235", "ge:12924"], "quantity": 3 },
+    { "square": 14, "items": ["ge:11802", "ge:11804", "ge:11806", "ge:11808"], "quantity": 1 },
+    { "square": 17, "items": ["ge:12924"], "quantity": 1 },
+    { "square": 20, "items": ["ge:11785"], "quantity": 1 },
+    { "square": 21, "items": ["ge:13652"], "quantity": 1 },
+    { "square": 23, "items": ["ge:21003", "ge:13576"], "quantity": 2 },
+    { "square": 26, "items": ["ge:11286"], "quantity": 1 },
+    { "square": 29, "items": ["ge:22486", "ge:20997"], "quantity": 1 }
+  ],
+  "ladders": [
+    { "id": "ladder-1", "start": 3,  "end": 11 },
+    { "id": "ladder-2", "start": 9,  "end": 21 },
+    { "id": "ladder-3", "start": 16, "end": 26 }
+  ],
+  "snakes": [
+    { "id": "snake-1", "start": 19, "end": 7 },
+    { "id": "snake-2", "start": 24, "end": 12 },
+    { "id": "snake-3", "start": 28, "end": 13 }
+  ]
+}

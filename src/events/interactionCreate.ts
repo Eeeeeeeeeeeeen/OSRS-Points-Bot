@@ -8,6 +8,8 @@ import { handleConfirmRemoveDrop, handleCancelRemoveDrop } from '../interactions
 import { handleApproveTrial } from '../interactions/buttons/approveTrial';
 import { handleDenyTrial } from '../interactions/buttons/denyTrial';
 import { handleLeaderboardNav } from '../interactions/buttons/leaderboardNav';
+import { handleSnlBoardNav } from '../interactions/buttons/snlBoardNav';
+import { handleSnlConfirmEnd, handleSnlCancelEnd } from '../interactions/buttons/snlEndGame';
 import { handleModifyDropSubmit } from '../interactions/modals/modifyDropSubmit';
 import { handleRejectDropSubmit } from '../interactions/modals/rejectDropSubmit';
 import { handleDenyTrialSubmit } from '../interactions/modals/denyTrialSubmit';
@@ -63,6 +65,15 @@ export function registerInteractionCreate(client: Client, commands: Map<string, 
                         break;
                     case 'leaderboard_nav':
                         await handleLeaderboardNav(interaction, parseInt(parts[1], 10));
+                        break;
+                    case 'snl_board_nav':
+                        await handleSnlBoardNav(interaction, parseInt(parts[1], 10));
+                        break;
+                    case 'snl_confirm_end':
+                        await handleSnlConfirmEnd(interaction, parseInt(parts[1], 10));
+                        break;
+                    case 'snl_cancel_end':
+                        await handleSnlCancelEnd(interaction);
                         break;
                 }
                 return;

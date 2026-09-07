@@ -133,6 +133,58 @@ const MIGRATIONS: string[] = [
     `ALTER TABLE drops ADD COLUMN team_size INTEGER;`,
     // 12 — trial pass condition
     `ALTER TABLE trials ADD COLUMN condition TEXT;`,
+    // 13 — snakes & ladders team game
+    `
+    CREATE TABLE IF NOT EXISTS snl_games (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        status              TEXT NOT NULL DEFAULT 'setup',
+        board_json          TEXT NOT NULL,
+        board_image_url     TEXT,
+        final_square        INTEGER NOT NULL,
+        announce_channel_id TEXT NOT NULL,
+        started_by          TEXT NOT NULL,
+        created_at          INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+        started_at          INTEGER,
+        ended_at            INTEGER,
+        winner_team_id      INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS snl_teams (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id     INTEGER NOT NULL REFERENCES snl_games(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        role_id     TEXT NOT NULL,
+        position    INTEGER NOT NULL DEFAULT 0,
+        arrived_at  INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+        finished_at INTEGER,
+        UNIQUE(game_id, role_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS snl_progress (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        team_id     INTEGER NOT NULL REFERENCES snl_teams(id) ON DELETE CASCADE,
+        square      INTEGER NOT NULL,
+        drop_id     INTEGER NOT NULL REFERENCES drops(id),
+        discord_id  TEXT NOT NULL,
+        credited_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+        UNIQUE(team_id, drop_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS snl_moves (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        team_id       INTEGER NOT NULL REFERENCES snl_teams(id) ON DELETE CASCADE,
+        roll          INTEGER,
+        from_square   INTEGER NOT NULL,
+        landed_square INTEGER NOT NULL,
+        final_square  INTEGER NOT NULL,
+        transition    TEXT,
+        transition_id TEXT,
+        created_at    INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_snl_progress_team_square ON snl_progress(team_id, square);
+    CREATE INDEX IF NOT EXISTS idx_snl_moves_team ON snl_moves(team_id);
+    `,
 ];
 
 export function runMigrations(db: Database.Database): void {

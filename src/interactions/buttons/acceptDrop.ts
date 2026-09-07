@@ -3,6 +3,7 @@ import { getDropById, updateDropStatus, insertDropRecipient } from '../../databa
 import { addUserPoints } from '../../database/queries/users';
 import { getDb } from '../../database/db';
 import { checkAndNotifyRankUp } from '../../services/rankService';
+import { creditDropToGame } from '../../services/snlService';
 import { buildAcceptedEmbed } from '../../embeds/reviewEmbed';
 import { buildDropLogEmbed } from '../../embeds/dropLogEmbed';
 import { config } from '../../config';
@@ -38,6 +39,13 @@ export async function handleAcceptDrop(interaction: ButtonInteraction, dropId: n
         await checkAndNotifyRankUp(guild, userId);
     }
 
+    // Snakes & Ladders credit — never let a game error break drop approval.
+    try {
+        await creditDropToGame(guild, drop);
+    } catch (err) {
+        console.error('S&L credit failed:', err);
+    }
+
     await interaction.message.edit({
         embeds: [buildAcceptedEmbed(drop, interaction.user)],
         components: [],
@@ -57,7 +65,9 @@ export async function handleAcceptDrop(interaction: ButtonInteraction, dropId: n
     try {
         const submitterMember = await guild.members.fetch(drop.submitter_id);
         await submitterMember.send(
-            `Your drop of **${drop.item_name}** was accepted! You earned **${drop.awarded_points}** points.`,
+            drop.awarded_points > 0
+                ? `Your drop of **${drop.item_name}** was accepted! You earned **${drop.awarded_points}** points.`
+                : `Your drop of **${drop.item_name}** was accepted! It awards no points, but it counts toward your Snakes & Ladders square.`,
         );
     } catch {
         // DMs disabled — ignore

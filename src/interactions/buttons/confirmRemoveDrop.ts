@@ -1,5 +1,6 @@
 import { ButtonInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { getDropById, getDropRecipients, reverseDrop } from '../../database/queries/drops';
+import { uncreditDrop } from '../../services/snlService';
 import { hasStaffRole } from '../../utils/permissions';
 
 export async function handleConfirmRemoveDrop(interaction: ButtonInteraction, dropId: number): Promise<void> {
@@ -18,6 +19,10 @@ export async function handleConfirmRemoveDrop(interaction: ButtonInteraction, dr
 
     const recipients = getDropRecipients(dropId);
     reverseDrop(dropId, interaction.user.id);
+
+    // A reversed drop no longer counts toward any Snakes & Ladders square. If the team has
+    // already moved on, the row is historical and removing it changes nothing.
+    uncreditDrop(dropId);
 
     // Silently remove rank roles if users no longer qualify
     if (interaction.guild) {

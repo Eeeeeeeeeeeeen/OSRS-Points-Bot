@@ -10,8 +10,9 @@ import { eventpoints } from './eventpoints';
 import { listcustomitems } from './listcustomitems';
 import { listitempoints } from './listitempoints';
 import { createThread } from './createThread';
+import { snl } from './snl';
 
-const commandList: Command[] = [drop, points, leaderboard, stats, referrals, admin, setpoints, eventpoints, listcustomitems, listitempoints, createThread];
+const commandList: Command[] = [drop, points, leaderboard, stats, referrals, admin, setpoints, eventpoints, listcustomitems, listitempoints, createThread, snl];
 
 export function loadCommands(): Map<string, Command> {
     const map = new Map<string, Command>();

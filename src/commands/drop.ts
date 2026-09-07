@@ -11,6 +11,8 @@ import { APIInteractionGuildMember } from 'discord-api-types/v10';
 import { Command } from '../types/command';
 import { getItemMapping, searchItems, getItemPrice, getBestPrice, findItemById } from '../services/osrsApi';
 import { isEligibleDrop, calculatePoints } from '../services/pointsService';
+import { activeSquareForItem } from '../services/snlService';
+import { describeRequirement } from '../services/snlBoard';
 import { upsertUser } from '../database/queries/users';
 import { insertDrop, updateDropReviewMessage } from '../database/queries/drops';
 import { getItemOverride } from '../database/queries/itemOverrides';
@@ -25,6 +27,12 @@ function getJoinedAt(member: GuildMember | APIInteractionGuildMember | null): nu
     if (!member) return Date.now();
     if (member instanceof GuildMember) return member.joinedTimestamp ?? Date.now();
     return member.joined_at ? new Date(member.joined_at).getTime() : Date.now();
+}
+
+function getRoleIds(member: GuildMember | APIInteractionGuildMember | null): string[] {
+    if (!member) return [];
+    if (member instanceof GuildMember) return [...member.roles.cache.keys()];
+    return member.roles;
 }
 
 export const drop: Command = {
@@ -95,6 +103,7 @@ export const drop: Command = {
         let awardedPoints: number;
         let priceDisplay: string;
         let itemSuffix: string | undefined;
+        let snlNote = '';
 
         if (itemValue.startsWith('custom:')) {
             const customId = parseInt(itemValue.split(':')[1], 10);
@@ -215,14 +224,30 @@ export const drop: Command = {
                 }
 
                 const fetchedPrice = getBestPrice(priceData);
-                if (fetchedPrice === null || !isEligibleDrop(fetchedPrice)) {
-                    await interaction.editReply('This item is worth less than 1,000,000 GP and does not qualify for points.');
+                if (fetchedPrice === null) {
+                    await interaction.editReply('Could not fetch item price. Please try again in a moment.');
                     return;
                 }
 
-                gpValue = fetchedPrice;
-                awardedPoints = calculatePoints(gpValue, effectiveTeamSize);
-                priceDisplay = formatGp(gpValue);
+                if (isEligibleDrop(fetchedPrice)) {
+                    gpValue = fetchedPrice;
+                    awardedPoints = calculatePoints(gpValue, effectiveTeamSize);
+                    priceDisplay = formatGp(gpValue);
+                } else {
+                    // Below the GP threshold, so worth no points — but let it through anyway
+                    // when the submitter's team needs it for the square they're standing on.
+                    const snl = activeSquareForItem(getRoleIds(interaction.member), `ge:${itemId}`);
+                    if (!snl) {
+                        await interaction.editReply('This item is worth less than 1,000,000 GP and does not qualify for points.');
+                        return;
+                    }
+                    gpValue = fetchedPrice;
+                    awardedPoints = 0;
+                    priceDisplay = `${formatGp(fetchedPrice)} — S&L square ${snl.team.position} (0 pts)`;
+                    snlNote =
+                        `\nIt counts toward **${snl.team.name}**'s square ${snl.team.position} ` +
+                        `(${describeRequirement(snl.requirement)}) but is below the 1,000,000 GP threshold, so it awards no points.`;
+                }
             }
         }
 
@@ -263,7 +288,7 @@ export const drop: Command = {
             : '';
         await interaction.editReply(
             `Your drop of **${itemName}** (${fullPriceDisplay}) has been submitted for review! ` +
-            `Each team member will receive **${awardedPoints}** point(s) upon approval.${teamSuffix}`,
+            `Each team member will receive **${awardedPoints}** point(s) upon approval.${teamSuffix}${snlNote}`,
         );
     },
 
