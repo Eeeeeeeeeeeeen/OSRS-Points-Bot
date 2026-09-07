@@ -183,6 +183,10 @@ export async function parseBoard(raw: string): Promise<ParseResult> {
                 errors.push(`${label} (${id}): "end" must be between 1 and ${lastSquare || 'finalSquare'}.`);
                 return;
             }
+            if (t.start === 1) {
+                errors.push(`${label} (${id}): square 1 cannot start a ${isLadder ? 'ladder' : 'snake'}.`);
+                return;
+            }
             if (isLadder && t.start >= t.end) {
                 errors.push(`${label} (${id}): a ladder must go up — "start" (${t.start}) must be below "end" (${t.end}).`);
                 return;

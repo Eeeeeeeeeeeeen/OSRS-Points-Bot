@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snakes &amp; Ladders Board Builder</title>
+<style>
+    :root {
+        --bg: #1a1c20;
+        --panel: #23262b;
+        --panel-2: #2b2f36;
+        --line: #3a3f47;
+        --text: #e6e8eb;
+        --muted: #9aa3ad;
+        --accent: #5865f2;
+        --ladder: #3ba55d;
+        --snake: #ed4245;
+        --item: #d9a441;
+        --final: #b57edc;
+        --bad: #ed4245;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        font: 14px/1.45 "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+    }
+    header {
+        padding: 14px 20px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+    header .spacer { flex: 1; }
+    .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 380px;
+        gap: 18px;
+        padding: 18px 20px 60px;
+        align-items: start;
+    }
+    @media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+    .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 14px 16px;
+        margin-bottom: 16px;
+    }
+    .card h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: var(--muted);
+        margin: 0 0 12px;
+    }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    input, select, button, textarea {
+        font: inherit;
+        color: var(--text);
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 7px 9px;
+    }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+    input[type=number] { width: 90px; }
+    button { cursor: pointer; background: var(--panel-2); }
+    button:hover { background: #343941; }
+    button.primary { background: var(--accent); border-color: var(--accent); }
+    button.primary:hover { background: #4752c4; }
+    button.danger { color: #ffb4b4; }
+    button.danger:hover { background: #45292c; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .hint { color: var(--muted); font-size: 12px; }
+
+    #board { display: grid; gap: 6px; }
+    .sq {
+        position: relative;
+        aspect-ratio: 1 / 1;
+        min-height: 62px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--panel);
+        cursor: pointer;
+        padding: 3px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        text-align: center;
+    }
+    .sq:hover { border-color: var(--accent); }
+    .sq.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .sq .num { position: absolute; top: 3px; left: 5px; font-size: 11px; color: var(--muted); }
+    .sq .tag { font-size: 11px; font-weight: 600; line-height: 1.2; }
+    .sq .sub { font-size: 10px; color: var(--muted); line-height: 1.2; }
+    .sq img { width: 30px; height: 30px; object-fit: contain; }
+    .sq.item { border-color: var(--item); }
+    .sq.ladder-start { border-color: var(--ladder); background: #23301f; }
+    .sq.snake-start { border-color: var(--snake); background: #331f22; }
+    .sq.landing { border-style: dashed; }
+    .sq.final { border-color: var(--final); background: #2c2338; }
+    .sq.invalid { box-shadow: inset 0 0 0 2px var(--bad); }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+    .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; border: 1px solid var(--line); vertical-align: -1px; }
+
+    .chip {
+        display: flex; align-items: center; gap: 8px;
+        background: var(--panel-2); border: 1px solid var(--line);
+        border-radius: 6px; padding: 5px 8px; margin-bottom: 6px;
+    }
+    .chip img { width: 24px; height: 24px; object-fit: contain; }
+    .chip .name { flex: 1; font-size: 13px; word-break: break-word; }
+    .chip .ref { color: var(--muted); font-size: 11px; }
+    .chip button { padding: 2px 7px; }
+
+    #results { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; margin-top: 6px; }
+    #results:empty { display: none; }
+    .result { display: flex; align-items: center; gap: 8px; padding: 5px 8px; cursor: pointer; }
+    .result:hover { background: var(--panel-2); }
+    .result img { width: 22px; height: 22px; object-fit: contain; }
+    .result .rid { margin-left: auto; color: var(--muted); font-size: 11px; }
+
+    .seg { display: flex; margin-bottom: 12px; }
+    .seg button { flex: 1; border-radius: 0; border-right-width: 0; padding: 7px 4px; font-size: 12px; }
+    .seg button:first-child { border-radius: 6px 0 0 6px; }
+    .seg button:last-child { border-radius: 0 6px 6px 0; border-right-width: 1px; }
+    .seg button.on { background: var(--accent); border-color: var(--accent); }
+
+    #problems { margin: 0; padding-left: 18px; font-size: 13px; }
+    #problems li { margin-bottom: 5px; }
+    .ok { color: var(--ladder); }
+    .err { color: #ff9a9a; }
+    .warn { color: var(--item); }
+    .status { font-size: 12px; color: var(--muted); }
+    .hidden { display: none !important; }
+    code { background: var(--panel-2); padding: 1px 4px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header>
+    <h1>&#128013;&#129692; Snakes &amp; Ladders Board Builder</h1>
+    <span class="status" id="apiStatus">Loading item list&hellip;</span>
+    <span class="status" id="customStatus"></span>
+    <span class="spacer"></span>
+    <button id="btnCustom">Load custom items&hellip;</button>
+    <input type="file" id="customInput" accept=".json,application/json" class="hidden">
+    <button id="btnLoad">Open board file&hellip;</button>
+    <button id="btnReset" class="danger">Start over</button>
+    <button id="btnCopy">Copy JSON</button>
+    <button id="btnImage">Download board picture (PNG)</button>
+    <button id="btnDownload" class="primary">Download board JSON</button>
+    <input type="file" id="fileInput" accept=".json,application/json" class="hidden">
+</header>
+
+<div class="layout">
+    <div>
+        <div class="card">
+            <h2>Board settings</h2>
+            <div class="row">
+                <div style="flex:1; min-width:220px">
+                    <label for="boardName">Board name</label>
+                    <input id="boardName" style="width:100%" placeholder="Avid Snakes &amp; Ladders">
+                </div>
+                <div>
+                    <label for="finalSquare">Final square</label>
+                    <input id="finalSquare" type="number" min="2" max="500" value="30">
+                </div>
+                <div>
+                    <label for="overshoot">Rolling past the end</label>
+                    <select id="overshoot">
+                        <option value="win">Wins the game</option>
+                        <option value="bounce">Bounces back</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="perRow">Squares per row</label>
+                    <input id="perRow" type="number" min="2" max="20" value="10">
+                </div>
+            </div>
+            <p class="hint" style="margin-bottom:0">
+                Square 1 is bottom-left and the numbers snake back and forth, like a real board.
+                Click any square to give it an item requirement, or to start a ladder or a snake from it.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Board</h2>
+            <div class="legend">
+                <span><i class="swatch" style="background:var(--item)"></i>Needs an item</span>
+                <span><i class="swatch" style="background:var(--ladder)"></i>Ladder start</span>
+                <span><i class="swatch" style="background:var(--snake)"></i>Snake start</span>
+                <span><i class="swatch" style="background:var(--final)"></i>Final square</span>
+                <span>dashed = a snake or ladder lands here</span>
+            </div>
+            <div id="board"></div>
+        </div>
+
+        <div class="card">
+            <h2>Checks</h2>
+            <div id="problemsWrap"></div>
+        </div>
+    </div>
+
+    <div>
+        <div class="card" id="editor">
+            <h2 id="editorTitle">Square</h2>
+            <div id="editorBody"></div>
+        </div>
+        <div class="card">
+            <h2>How to use this</h2>
+            <ol class="hint" style="padding-left:18px; margin:0 0 10px">
+                <li>Set the board name and how many squares it has.</li>
+                <li>Click a square, pick what it does, and search for the OSRS items it accepts.</li>
+                <li>Clear everything listed under <b>Checks</b> &mdash; the bot rejects a board with errors.</li>
+                <li>Press <b>Download board JSON</b>, then upload that file with <code>/snl setup</code> in Discord.</li>
+                <li>Optional: <b>Download board picture</b> gives you a PNG of the board. Put it somewhere
+                    permanent (Imgur, for example) and pass the link to <code>/snl setimage</code> so it shows
+                    in the game messages. Discord's own attachment links expire, so don't use those.</li>
+            </ol>
+            <p class="hint" style="margin:0">Your work is saved in this browser automatically, so you can close the page and come back to it.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var MAPPING_URL = 'https://prices.runescape.wiki/api/v1/osrs/mapping';
+    var ICON = 'https://static.runelite.net/cache/item/icon/';
+    var STORAGE_KEY = 'snl-board-builder-v1';
+    var CUSTOM_KEY = 'snl-board-builder-custom-v1';
+    var MAX_FINAL_SQUARE = 500;
+
+    // ---- state -------------------------------------------------------------
+    // squares: { "<n>": { items: [{ref, name}], quantity, label } }
+    // moves:   { "<n>": { kind: 'ladder'|'snake', end, id } }  keyed by start square
+    var state = {
+        name: '',
+        finalSquare: 30,
+        overshoot: 'win',
+        perRow: 10,
+        squares: {},
+        moves: {}
+    };
+    var selected = null;
+    var items = [];          // GE item mapping, once loaded
+    var itemsById = {};
+    var customItems = [];    // [{ ref, name }] from the bot's custom-items.json
+
+    var $ = function (id) { return document.getElementById(id); };
+
+    function esc(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    // ---- persistence -------------------------------------------------------
+    function save() {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* private mode */ }
+    }
+    function restore() {
+        var raw;
+        try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) { return; }
+        if (!raw) return;
+        try {
+            var saved = JSON.parse(raw);
+            if (saved && typeof saved === 'object') {
+                state.name = saved.name || '';
+                state.finalSquare = saved.finalSquare || 30;
+                state.overshoot = saved.overshoot === 'bounce' ? 'bounce' : 'win';
+                state.perRow = saved.perRow || 10;
+                state.squares = saved.squares || {};
+                state.moves = saved.moves || {};
+            }
+        } catch (e) { /* ignore a corrupt save */ }
+
+        try {
+            var savedCustom = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]');
+            if (Array.isArray(savedCustom)) customItems = savedCustom;
+        } catch (e) { /* ignore a corrupt save */ }
+    }
+
+    // Names are stored alongside the refs, but a board written by hand may only carry
+    // "custom:14" — fill those in once the list is available.
+    function nameCustomRefs() {
+        var byRef = {};
+        customItems.forEach(function (c) { byRef[c.ref] = c.name; });
+        var changed = false;
+        Object.keys(state.squares).forEach(function (n) {
+            state.squares[n].items.forEach(function (it) {
+                if (!it.name && byRef[it.ref]) { it.name = byRef[it.ref]; changed = true; }
+            });
+        });
+        if (changed) save();
+    }
+
+    // ---- item list ---------------------------------------------------------
+    function loadItems() {
+        fetch(MAPPING_URL)
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function (data) {
+                items = data;
+                for (var i = 0; i < items.length; i++) itemsById[items[i].id] = items[i];
+                $('apiStatus').textContent = items.length.toLocaleString() + ' items loaded';
+                // Fill in any names that were missing from a loaded file.
+                var changed = false;
+                Object.keys(state.squares).forEach(function (n) {
+                    state.squares[n].items.forEach(function (it) {
+                        if (!it.name && it.ref.indexOf('ge:') === 0) {
+                            var found = itemsById[parseInt(it.ref.slice(3), 10)];
+                            if (found) { it.name = found.name; changed = true; }
+                        }
+                    });
+                });
+                if (changed) { save(); render(); }
+            })
+            .catch(function (err) {
+                $('apiStatus').innerHTML = '<span class="err">Item search unavailable (' + esc(err.message) +
+                    ') &mdash; you can still type item IDs by hand.</span>';
+            });
+    }
+
+    // Searches GE items and any loaded custom items together, returning a common shape:
+    // { ref, name, iconId } — iconId is null for custom items, which have no picture.
+    function searchAll(query) {
+        var q = query.trim().toLowerCase();
+        if (!q) return [];
+        var starts = [], contains = [];
+
+        var consider = function (entry) {
+            var lower = entry.name.toLowerCase();
+            if (lower === q || lower.indexOf(q) === 0) starts.push(entry);
+            else if (lower.indexOf(q) !== -1) contains.push(entry);
+        };
+
+        customItems.forEach(function (c) { consider({ ref: c.ref, name: c.name, iconId: null, custom: true }); });
+        for (var i = 0; i < items.length && starts.length + contains.length < 400; i++) {
+            consider({ ref: 'ge:' + items[i].id, name: items[i].name, iconId: String(items[i].id) });
+        }
+
+        // Custom items rank above GE ones: there are only a handful and they are the
+        // ones an organiser cannot look up anywhere else.
+        var rank = function (a, b) {
+            if (!a.custom !== !b.custom) return a.custom ? -1 : 1;
+            return a.name.localeCompare(b.name);
+        };
+        return starts.sort(rank).concat(contains.sort(rank)).slice(0, 40);
+    }
+
+    // ---- custom items ------------------------------------------------------
+    // Loaded from the custom-items.json that /listcustomitems attaches in Discord.
+    function loadCustomItems(text) {
+        var data;
+        try { data = JSON.parse(text); } catch (e) {
+            alert('That file is not valid JSON:\n\n' + e.message);
+            return;
+        }
+        if (!Array.isArray(data)) { alert('That does not look like the custom item list from /listcustomitems.'); return; }
+
+        var parsed = [];
+        data.forEach(function (entry) {
+            if (!entry || typeof entry !== 'object') return;
+            var ref = typeof entry.ref === 'string' ? entry.ref
+                : (Number.isInteger(entry.id) ? 'custom:' + entry.id : null);
+            if (!ref || !/^custom:\d+$/.test(ref) || typeof entry.name !== 'string') return;
+            parsed.push({ ref: ref, name: entry.name });
+        });
+
+        if (!parsed.length) { alert('No custom items were found in that file.'); return; }
+
+        customItems = parsed;
+        try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(customItems)); } catch (e) { /* private mode */ }
+        nameCustomRefs();
+        showCustomStatus();
+        render();
+    }
+
+    function showCustomStatus() {
+        var el = $('customStatus');
+        el.textContent = customItems.length
+            ? customItems.length + ' custom item(s) loaded'
+            : 'no custom items loaded';
+    }
+
+    // ---- board model helpers ----------------------------------------------
+    function squareAt(n) { return state.squares[n] || null; }
+    function moveAt(n) { return state.moves[n] || null; }
+    function landings() {
+        var set = {};
+        Object.keys(state.moves).forEach(function (n) { set[state.moves[n].end] = true; });
+        return set;
+    }
+
+    function clearSquare(n) {
+        delete state.squares[n];
+        delete state.moves[n];
+    }
+
+    // ---- validation --------------------------------------------------------
+    // Mirrors src/services/snlBoard.ts so the bot never rejects a board that
+    // looks fine here.
+    function validate() {
+        var errors = [], warnings = [], badSquares = {};
+        var last = state.finalSquare;
+
+        var flag = function (n, msg) { badSquares[n] = true; errors.push(msg); };
+
+        if (!Number.isInteger(last) || last < 2 || last > MAX_FINAL_SQUARE) {
+            errors.push('The final square must be a whole number between 2 and ' + MAX_FINAL_SQUARE + '.');
+            return { errors: errors, warnings: warnings, badSquares: badSquares };
+        }
+
+        var land = landings();
+
+        Object.keys(state.squares).forEach(function (key) {
+            var n = parseInt(key, 10);
+            var sq = state.squares[key];
+            if (n < 1 || n > last) {
+                flag(n, 'Square ' + n + ' is outside the board (1 to ' + last + ') — delete it or raise the final square.');
+                return;
+            }
+            if (n === last) {
+                flag(n, 'Square ' + n + ' is the final square: landing there wins the game, so it cannot require an item.');
+                return;
+            }
+            if (!sq.items || sq.items.length === 0) {
+                flag(n, 'Square ' + n + ' needs at least one item, or it should be set back to "Nothing".');
+                return;
+            }
+            var seen = {};
+            for (var i = 0; i < sq.items.length; i++) {
+                var ref = sq.items[i].ref;
+                if (seen[ref]) { flag(n, 'Square ' + n + ' lists ' + ref + ' twice — raise the quantity instead.'); return; }
+                seen[ref] = true;
+                if (!/^(ge|custom):\d+$/.test(ref)) { flag(n, 'Square ' + n + ': "' + ref + '" is not a valid item reference.'); return; }
+            }
+            if (!Number.isInteger(sq.quantity) || sq.quantity < 1) {
+                flag(n, 'Square ' + n + ': the quantity must be a whole number of 1 or more.');
+            }
+            if (sq.items.length > 1 && !sq.label) {
+                warnings.push('Square ' + n + ' accepts ' + sq.items.length + ' different items — a short label keeps the Discord message tidy.');
+            }
+            // Only reachable via an imported file — the editor treats the two as exclusive.
+            if (state.moves[n]) {
+                flag(n, 'Square ' + n + ' both requires an item and starts a ' + state.moves[n].kind +
+                    ' — pick one. Teams owe the item where they end up, not where they landed.');
+                return;
+            }
+            if (sq.items.some(function (it) { return it.ref.indexOf('custom:') === 0; })) {
+                warnings.push('Square ' + n + ' uses a custom item — check its ID with /listcustomitems before setup.');
+            }
+        });
+
+        Object.keys(state.moves).forEach(function (key) {
+            var start = parseInt(key, 10);
+            var mv = state.moves[key];
+            var what = (mv.kind === 'ladder' ? 'Ladder' : 'Snake') + ' from ' + start;
+            if (start < 1 || start > last) { flag(start, what + ' starts outside the board (1 to ' + last + ').'); return; }
+            if (!Number.isInteger(mv.end) || mv.end < 1 || mv.end > last) {
+                flag(start, what + ' must lead to a square between 1 and ' + last + '.'); return;
+            }
+            if (start === last) { flag(start, 'Nothing can start on the final square — landing there wins the game.'); return; }
+            if (start === 1) { flag(start, 'Square 1 cannot start a ' + mv.kind + ' — set it to "Nothing" or give it an item.'); return; }
+            if (mv.kind === 'ladder' && mv.end <= start) { flag(start, what + ' must go up — it currently leads to ' + mv.end + '.'); return; }
+            if (mv.kind === 'snake' && mv.end >= start) { flag(start, what + ' must go down — it currently leads to ' + mv.end + '.'); return; }
+            if (mv.kind === 'ladder' && mv.end === last) { flag(start, 'A ladder cannot end on the final square (' + last + ').'); return; }
+            if (state.moves[mv.end]) {
+                flag(start, what + ' lands on ' + mv.end + ', which starts another snake or ladder — chains are not allowed.');
+            }
+        });
+
+        if (Object.keys(state.squares).length === 0) {
+            warnings.push('No squares require an item yet — teams would roll straight to the finish.');
+        }
+        if (!Object.keys(state.moves).length) {
+            warnings.push('There are no snakes or ladders on this board yet.');
+        }
+        void land;
+        return { errors: errors, warnings: warnings, badSquares: badSquares };
+    }
+
+    // ---- export ------------------------------------------------------------
+    function buildBoard() {
+        var ladders = [], snakes = [];
+        Object.keys(state.moves)
+            .map(Number)
+            .sort(function (a, b) { return a - b; })
+            .forEach(function (start) {
+                var mv = state.moves[start];
+                var list = mv.kind === 'ladder' ? ladders : snakes;
+                list.push({ id: mv.id || (mv.kind + '-' + (list.length + 1)), start: start, end: mv.end });
+            });
+
+        var squares = Object.keys(state.squares)
+            .map(Number)
+            .sort(function (a, b) { return a - b; })
+            .map(function (n) {
+                var sq = state.squares[n];
+                var out = {
+                    square: n,
+                    items: sq.items.map(function (it) { return it.ref; }),
+                    quantity: sq.quantity
+                };
+                if (sq.label) out.label = sq.label;
+                return out;
+            });
+
+        return {
+            name: state.name.trim() || 'Snakes & Ladders',
+            finalSquare: state.finalSquare,
+            overshoot: state.overshoot,
+            squares: squares,
+            ladders: ladders,
+            snakes: snakes
+        };
+    }
+
+    function boardJson() { return JSON.stringify(buildBoard(), null, 2); }
+
+    function download() {
+        var result = validate();
+        if (result.errors.length && !confirm(
+            result.errors.length + ' problem(s) still need fixing — the bot will reject this file.\n\nDownload anyway?'
+        )) return;
+
+        var blob = new Blob([boardJson()], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        var slug = (state.name.trim() || 'snl-board').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        a.href = url;
+        a.download = (slug || 'snl-board') + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+
+    // ---- import ------------------------------------------------------------
+    function importBoard(text) {
+        var data;
+        try { data = JSON.parse(text); } catch (e) {
+            alert('That file is not valid JSON:\n\n' + e.message);
+            return;
+        }
+        if (!data || typeof data !== 'object') { alert('That file does not look like a board.'); return; }
+
+        state.name = typeof data.name === 'string' ? data.name : '';
+        state.finalSquare = Number.isInteger(data.finalSquare) ? data.finalSquare : 30;
+        state.overshoot = data.overshoot === 'bounce' ? 'bounce' : 'win';
+        state.squares = {};
+        state.moves = {};
+
+        (Array.isArray(data.squares) ? data.squares : []).forEach(function (s) {
+            if (!s || !Number.isInteger(s.square)) return;
+            var raw = typeof s.items === 'string' ? [s.items] : (Array.isArray(s.items) ? s.items : []);
+            var list = raw.map(function (entry) {
+                var ref = typeof entry === 'string' ? entry : (entry && entry.item);
+                if (typeof ref !== 'string') return null;
+                var name = (entry && typeof entry.name === 'string') ? entry.name : '';
+                if (!name && ref.indexOf('ge:') === 0) {
+                    var found = itemsById[parseInt(ref.slice(3), 10)];
+                    if (found) name = found.name;
+                }
+                return { ref: ref, name: name };
+            }).filter(Boolean);
+            if (!list.length) return;
+            state.squares[s.square] = {
+                items: list,
+                quantity: Number.isInteger(s.quantity) && s.quantity > 0 ? s.quantity : 1,
+                label: typeof s.label === 'string' ? s.label : ''
+            };
+        });
+
+        // A square can only hold one snake or ladder here, so say so rather than
+        // silently dropping the extra one.
+        var clashes = [];
+
+        ['ladders', 'snakes'].forEach(function (key) {
+            var kind = key === 'ladders' ? 'ladder' : 'snake';
+            (Array.isArray(data[key]) ? data[key] : []).forEach(function (t) {
+                if (!t || !Number.isInteger(t.start) || !Number.isInteger(t.end)) return;
+                if (state.moves[t.start]) clashes.push(t.start);
+                state.moves[t.start] = {
+                    kind: kind,
+                    end: t.end,
+                    id: typeof t.id === 'string' && t.id.trim() ? t.id.trim() : ''
+                };
+            });
+        });
+
+        selected = null;
+        syncInputs();
+        save();
+        render();
+
+        if (clashes.length) {
+            alert('Square(s) ' + clashes.join(', ') + ' had more than one snake or ladder starting from them, ' +
+                'which is not allowed. Only the last one in the file was kept — check those squares.');
+        }
+    }
+
+    // ---- rendering ---------------------------------------------------------
+    function syncInputs() {
+        $('boardName').value = state.name;
+        $('finalSquare').value = state.finalSquare;
+        $('overshoot').value = state.overshoot;
+        $('perRow').value = state.perRow;
+    }
+
+    function render() {
+        var result = validate();
+        renderBoard(result.badSquares);
+        renderProblems(result);
+        renderEditor();
+    }
+
+    function renderBoard(bad) {
+        var board = $('board');
+        var last = state.finalSquare;
+        var perRow = Math.max(2, Math.min(20, state.perRow || 10));
+        board.style.gridTemplateColumns = 'repeat(' + perRow + ', minmax(0, 1fr))';
+        board.innerHTML = '';
+
+        if (!Number.isInteger(last) || last < 2 || last > MAX_FINAL_SQUARE) {
+            board.innerHTML = '<p class="hint">Set a final square between 2 and ' + MAX_FINAL_SQUARE + ' to draw the board.</p>';
+            board.style.gridTemplateColumns = '';
+            return;
+        }
+
+        // Serpentine, bottom row first — square 1 sits bottom-left. Every tile is placed
+        // explicitly: a last row that isn't full would otherwise let the browser's grid
+        // auto-flow shuffle every square after it into the wrong column.
+        var rows = Math.ceil(last / perRow);
+        var land = landings();
+        var frag = document.createDocumentFragment();
+
+        for (var n = 1; n <= last; n++) {
+            var rowFromBottom = Math.floor((n - 1) / perRow);
+            var offset = (n - 1) % perRow;
+            // Odd rows run right to left, the way the numbers wrap on a real board.
+            var col = rowFromBottom % 2 === 1 ? perRow - 1 - offset : offset;
+            var tile = squareTile(n, land, bad);
+            tile.style.gridRow = String(rows - rowFromBottom);
+            tile.style.gridColumn = String(col + 1);
+            frag.appendChild(tile);
+        }
+        board.appendChild(frag);
+    }
+
+    function squareTile(n, land, bad) {
+        var el = document.createElement('div');
+        var mv = moveAt(n);
+        var sq = squareAt(n);
+        var classes = ['sq'];
+
+        if (n === state.finalSquare) classes.push('final');
+        if (mv) classes.push(mv.kind + '-start');
+        if (sq) classes.push('item');
+        if (land[n]) classes.push('landing');
+        if (bad[n]) classes.push('invalid');
+        if (selected === n) classes.push('selected');
+        el.className = classes.join(' ');
+
+        var html = '<span class="num">' + n + '</span>';
+        if (n === state.finalSquare) {
+            html += '<span class="tag">&#127937; FINISH</span>';
+        } else if (mv) {
+            html += '<span class="tag">' + (mv.kind === 'ladder' ? '&#129692; &#8593; ' : '&#128013; &#8595; ') + mv.end + '</span>';
+        } else if (sq) {
+            var ge = null;
+            for (var i = 0; i < sq.items.length; i++) {
+                if (sq.items[i].ref.indexOf('ge:') === 0) { ge = sq.items[i].ref.slice(3); break; }
+            }
+            if (ge) html += '<img src="' + ICON + ge + '.png" alt="" loading="lazy">';
+            // A square just switched to "Needs item" has nothing on it yet.
+            var caption;
+            if (sq.label) caption = sq.label;
+            else if (sq.items.length > 1) caption = sq.items.length + ' options';
+            else if (sq.items.length === 1) caption = sq.items[0].name || sq.items[0].ref;
+            else caption = 'pick an item';
+            html += '<span class="sub">' + (sq.items.length && sq.quantity > 1 ? sq.quantity + '&times; ' : '') + esc(caption) + '</span>';
+        }
+        el.innerHTML = html;
+        el.title = 'Square ' + n;
+        el.addEventListener('click', function () { selected = n; render(); });
+        return el;
+    }
+
+    function renderProblems(result) {
+        var wrap = $('problemsWrap');
+        if (!result.errors.length && !result.warnings.length) {
+            wrap.innerHTML = '<p class="ok" style="margin:0">&#10003; This board is ready to upload with <code>/snl setup</code>.</p>';
+            return;
+        }
+        var html = '<ul id="problems">';
+        result.errors.forEach(function (e) { html += '<li class="err">' + esc(e) + '</li>'; });
+        result.warnings.forEach(function (w) { html += '<li class="warn">' + esc(w) + '</li>'; });
+        html += '</ul>';
+        if (!result.errors.length) {
+            html += '<p class="ok" style="margin:8px 0 0">No errors — the notes above are only suggestions.</p>';
+        }
+        // Squares past the end of the board can't be clicked, so offer a way out.
+        if (outOfRange().length) {
+            html += '<button id="btnTrim" class="danger" style="margin-top:8px">Delete the ' +
+                outOfRange().length + ' square(s) outside the board</button>';
+        }
+        wrap.innerHTML = html;
+
+        var trim = $('btnTrim');
+        if (trim) {
+            trim.addEventListener('click', function () {
+                outOfRange().forEach(function (n) { clearSquare(n); });
+                save();
+                render();
+            });
+        }
+    }
+
+    // Squares and snake/ladder starts that sit beyond the current final square.
+    function outOfRange() {
+        var last = state.finalSquare;
+        return Object.keys(state.squares).concat(Object.keys(state.moves))
+            .map(Number)
+            .filter(function (n, i, all) { return all.indexOf(n) === i && (n < 1 || n > last); });
+    }
+
+    function renderEditor() {
+        var title = $('editorTitle');
+        var body = $('editorBody');
+
+        if (selected === null) {
+            title.textContent = 'Square';
+            body.innerHTML = '<p class="hint" style="margin:0">Click a square on the board to edit it.</p>';
+            return;
+        }
+
+        var n = selected;
+        title.textContent = 'Square ' + n + (n === state.finalSquare ? ' (finish)' : '');
+
+        if (n === state.finalSquare) {
+            body.innerHTML = '<p class="hint" style="margin:0">This is the final square. Landing here wins the game, ' +
+                'so it cannot hold an item, a snake or a ladder.</p>';
+            return;
+        }
+
+        var mv = moveAt(n);
+        var sq = squareAt(n);
+        var mode = mv ? mv.kind : (sq ? 'item' : 'none');
+
+        // Square 1 may hold an item, but nothing may start from it.
+        var canMove = n !== 1;
+        var html = '<div class="seg">' +
+            segBtn('none', mode, 'Nothing') +
+            segBtn('item', mode, 'Needs item') +
+            (canMove ? segBtn('ladder', mode, '&#129692; Ladder') + segBtn('snake', mode, '&#128013; Snake') : '') +
+            '</div>';
+
+        if (!canMove) {
+            html += '<p class="hint">Square 1 cannot start a snake or a ladder. It can still require an item.</p>';
+        }
+
+        if (mv && sq) {
+            html += '<p class="err">This square also carries an item requirement, which is not allowed on a ' +
+                mv.kind + ' start. <button id="dropItem">Remove the item requirement</button></p>';
+        }
+
+        if (mode === 'ladder' || mode === 'snake') {
+            var goingUp = mode === 'ladder';
+            html += '<label for="mvEnd">' + (goingUp ? 'Climbs up to square' : 'Slides down to square') + '</label>' +
+                '<input id="mvEnd" type="number" min="1" max="' + state.finalSquare + '" value="' + mv.end + '">' +
+                '<p class="hint">Must be ' + (goingUp ? 'higher' : 'lower') + ' than ' + n +
+                (goingUp ? ', and not the final square (' + state.finalSquare + ')' : '') + '.</p>';
+        } else if (mode === 'item') {
+            html += '<label>Items this square accepts</label><div id="chips"></div>' +
+                '<label for="search" style="margin-top:10px">Add an item</label>' +
+                '<input id="search" style="width:100%" placeholder="Start typing, e.g. bandos chestplate" autocomplete="off">' +
+                '<div id="results"></div>' +
+                '<div class="row" style="margin-top:10px">' +
+                '<div><label for="qty">How many needed</label>' +
+                '<input id="qty" type="number" min="1" value="' + sq.quantity + '"></div>' +
+                '<div style="flex:1; min-width:150px"><label for="lbl">Label (optional)</label>' +
+                '<input id="lbl" style="width:100%" placeholder="e.g. Any Godsword blade" value="' + esc(sq.label || '') + '"></div>' +
+                '</div>' +
+                '<p class="hint">Any mix of the listed items counts towards the total — three of one, or one each of three.' +
+                ' A label replaces the whole list in Discord, which keeps long lists readable.</p>' +
+                '<details style="margin-top:6px"><summary class="hint" style="cursor:pointer">Add a custom item by ID</summary>' +
+                '<div class="row" style="margin-top:8px">' +
+                '<div><label for="customId">Custom item ID</label><input id="customId" type="number" min="1"></div>' +
+                '<div style="flex:1; min-width:130px"><label for="customName">Name (optional)</label><input id="customName" style="width:100%"></div>' +
+                '<button id="addCustom">Add</button></div>' +
+                '<p class="hint" style="margin-bottom:0">Only needed if you have not loaded the custom item list. ' +
+                'Run <code>/listcustomitems</code> in Discord — the ID is shown next to each name, and the ' +
+                '<code>custom-items.json</code> it attaches can be loaded with <b>Load custom items</b> at the top ' +
+                'to make them searchable by name.</p>' +
+                '</details>';
+        } else {
+            html += '<p class="hint" style="margin:0">Teams pass over this square without owing anything.</p>';
+        }
+
+        body.innerHTML = html;
+        wireEditor(n, mode);
+    }
+
+    function segBtn(value, current, label) {
+        return '<button data-mode="' + value + '" class="' + (current === value ? 'on' : '') + '">' + label + '</button>';
+    }
+
+    function wireEditor(n, mode) {
+        var body = $('editorBody');
+
+        var dropItem = $('dropItem');
+        if (dropItem) {
+            dropItem.addEventListener('click', function () {
+                delete state.squares[n];
+                save();
+                render();
+            });
+        }
+
+        Array.prototype.forEach.call(body.querySelectorAll('.seg button'), function (btn) {
+            btn.addEventListener('click', function () {
+                var next = btn.getAttribute('data-mode');
+                if (next === mode) return;
+                clearSquare(n);
+                if (next === 'item') {
+                    state.squares[n] = { items: [], quantity: 1, label: '' };
+                } else if (next === 'ladder') {
+                    state.moves[n] = { kind: 'ladder', end: Math.min(state.finalSquare - 1, n + 1), id: '' };
+                } else if (next === 'snake') {
+                    state.moves[n] = { kind: 'snake', end: Math.max(1, n - 1), id: '' };
+                }
+                save();
+                render();
+            });
+        });
+
+        if (mode === 'ladder' || mode === 'snake') {
+            var end = $('mvEnd');
+            end.addEventListener('input', function () {
+                var v = parseInt(end.value, 10);
+                if (Number.isInteger(v)) { state.moves[n].end = v; save(); render(); end.focus(); }
+            });
+            return;
+        }
+
+        if (mode !== 'item') return;
+
+        renderChips(n);
+
+        var qty = $('qty');
+        qty.addEventListener('input', function () {
+            var v = parseInt(qty.value, 10);
+            state.squares[n].quantity = Number.isInteger(v) ? v : 1;
+            save();
+            renderBoard(validate().badSquares);
+            renderProblems(validate());
+        });
+
+        var lbl = $('lbl');
+        lbl.addEventListener('input', function () {
+            state.squares[n].label = lbl.value.trim();
+            save();
+            renderBoard(validate().badSquares);
+            renderProblems(validate());
+        });
+
+        var search = $('search');
+        var results = $('results');
+        var timer = null;
+        search.addEventListener('input', function () {
+            clearTimeout(timer);
+            timer = setTimeout(function () { showResults(n, search.value); }, 120);
+        });
+        search.focus();
+
+        var addCustom = $('addCustom');
+        if (addCustom) {
+            addCustom.addEventListener('click', function () {
+                var id = parseInt($('customId').value, 10);
+                if (!Number.isInteger(id) || id < 1) { alert('Enter the numeric ID of the custom item.'); return; }
+                addItem(n, 'custom:' + id, $('customName').value.trim() || ('Custom item ' + id));
+            });
+        }
+
+        void results;
+    }
+
+    function showResults(n, query) {
+        var results = $('results');
+        if (!results) return;
+        if (!items.length && !customItems.length) {
+            results.innerHTML = '<div class="result hint">Item list unavailable — check your internet connection, ' +
+                'then reload this page.</div>';
+            return;
+        }
+        var found = searchAll(query);
+        if (!query.trim()) { results.innerHTML = ''; return; }
+        if (!found.length) { results.innerHTML = '<div class="result hint">No item matches "' + esc(query) + '".</div>'; return; }
+
+        results.innerHTML = found.map(function (it, i) {
+            var icon = it.iconId
+                ? '<img src="' + ICON + it.iconId + '.png" alt="" loading="lazy">'
+                : '<span style="width:22px; text-align:center">&#9881;</span>';
+            return '<div class="result" data-i="' + i + '">' + icon +
+                '<span>' + esc(it.name) + '</span>' +
+                '<span class="rid">' + esc(it.ref) + '</span></div>';
+        }).join('');
+
+        Array.prototype.forEach.call(results.querySelectorAll('.result[data-i]'), function (row) {
+            row.addEventListener('click', function () {
+                var hit = found[parseInt(row.getAttribute('data-i'), 10)];
+                addItem(n, hit.ref, hit.name);
+            });
+        });
+    }
+
+    function addItem(n, ref, name) {
+        var sq = state.squares[n];
+        if (!sq) return;
+        if (sq.items.some(function (it) { return it.ref === ref; })) {
+            alert(name + ' is already on this square. To require more than one, raise "How many needed".');
+            return;
+        }
+        sq.items.push({ ref: ref, name: name });
+        save();
+        render();
+    }
+
+    function renderChips(n) {
+        var wrap = $('chips');
+        if (!wrap) return;
+        var sq = state.squares[n];
+        if (!sq.items.length) {
+            wrap.innerHTML = '<p class="hint" style="margin:0 0 6px">No items yet — search below.</p>';
+            return;
+        }
+        wrap.innerHTML = sq.items.map(function (it, i) {
+            var icon = it.ref.indexOf('ge:') === 0
+                ? '<img src="' + ICON + it.ref.slice(3) + '.png" alt="" loading="lazy">'
+                : '<span>&#9881;</span>';
+            return '<div class="chip">' + icon +
+                '<span class="name">' + esc(it.name || it.ref) + '<br><span class="ref">' + esc(it.ref) + '</span></span>' +
+                '<button class="danger" data-i="' + i + '" title="Remove">&times;</button></div>';
+        }).join('');
+
+        Array.prototype.forEach.call(wrap.querySelectorAll('button[data-i]'), function (btn) {
+            btn.addEventListener('click', function () {
+                sq.items.splice(parseInt(btn.getAttribute('data-i'), 10), 1);
+                save();
+                render();
+            });
+        });
+    }
+
+    // ---- board picture ------------------------------------------------------
+    // Draws the board to a PNG that can be posted in Discord and pointed at with
+    // /snl setimage. Item icons come from a host that allows cross-origin reads, so
+    // the canvas stays exportable.
+    var CELL = 120, GAP = 8, PAD = 28, HEADER = 76, FOOTER = 44;
+    var PAINT = {
+        bg: '#1a1c20', tile: '#252930', tileLine: '#3f454e', text: '#e6e8eb', muted: '#9aa3ad',
+        item: '#d9a441', ladder: '#3ba55d', snake: '#ed4245', final: '#b57edc'
+    };
+
+    function loadIcon(id) {
+        return new Promise(function (resolve) {
+            var img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = function () { resolve(img); };
+            img.onerror = function () { resolve(null); };   // draw the square without it
+            img.src = ICON + id + '.png';
+        });
+    }
+
+    function iconIdFor(sq) {
+        for (var i = 0; i < sq.items.length; i++) {
+            if (sq.items[i].ref.indexOf('ge:') === 0) return sq.items[i].ref.slice(3);
+        }
+        return null;
+    }
+
+    function tileXY(n, perRow, rows) {
+        var rowFromBottom = Math.floor((n - 1) / perRow);
+        var offset = (n - 1) % perRow;
+        var col = rowFromBottom % 2 === 1 ? perRow - 1 - offset : offset;
+        return {
+            x: PAD + col * (CELL + GAP),
+            y: HEADER + (rows - 1 - rowFromBottom) * (CELL + GAP)
+        };
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+    }
+
+    // Word-wraps into at most `maxLines` lines, ellipsising whatever will not fit.
+    function wrapText(ctx, text, maxWidth, maxLines) {
+        var words = String(text).split(/\s+/);
+        var lines = [], line = '';
+        for (var i = 0; i < words.length; i++) {
+            var candidate = line ? line + ' ' + words[i] : words[i];
+            if (ctx.measureText(candidate).width <= maxWidth || !line) {
+                line = candidate;
+            } else {
+                lines.push(line);
+                line = words[i];
+                if (lines.length === maxLines) break;
+            }
+        }
+        if (lines.length < maxLines && line) lines.push(line);
+        if (lines.length === maxLines) {
+            var last = lines[maxLines - 1];
+            var joined = lines.join(' ');
+            if (joined !== text.trim()) {
+                while (last.length > 1 && ctx.measureText(last + '…').width > maxWidth) last = last.slice(0, -1);
+                lines[maxLines - 1] = last + '…';
+            }
+        }
+        return lines;
+    }
+
+    function drawLadder(ctx, from, to) {
+        var dx = to.x - from.x, dy = to.y - from.y;
+        var len = Math.sqrt(dx * dx + dy * dy) || 1;
+        var ux = dx / len, uy = dy / len;
+        var px = -uy * 9, py = ux * 9;          // perpendicular offset for the two rails
+
+        ctx.strokeStyle = PAINT.ladder;
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        [1, -1].forEach(function (side) {
+            ctx.beginPath();
+            ctx.moveTo(from.x + px * side, from.y + py * side);
+            ctx.lineTo(to.x + px * side, to.y + py * side);
+            ctx.stroke();
+        });
+        ctx.lineWidth = 3;
+        var rungs = Math.max(2, Math.round(len / 26));
+        for (var i = 0; i <= rungs; i++) {
+            var t = i / rungs;
+            var cx = from.x + dx * t, cy = from.y + dy * t;
+            ctx.beginPath();
+            ctx.moveTo(cx + px, cy + py);
+            ctx.lineTo(cx - px, cy - py);
+            ctx.stroke();
+        }
+    }
+
+    function drawSnake(ctx, from, to) {
+        var dx = to.x - from.x, dy = to.y - from.y;
+        var len = Math.sqrt(dx * dx + dy * dy) || 1;
+        var ux = dx / len, uy = dy / len;
+        var px = -uy, py = ux;
+
+        ctx.strokeStyle = PAINT.snake;
+        ctx.lineWidth = 7;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        var steps = Math.max(24, Math.round(len / 6));
+        for (var i = 0; i <= steps; i++) {
+            var t = i / steps;
+            // Taper the wave at both ends so it meets the squares cleanly.
+            var wave = Math.sin(t * Math.PI * 3) * 14 * Math.sin(t * Math.PI);
+            var cx = from.x + dx * t + px * wave;
+            var cy = from.y + dy * t + py * wave;
+            if (i === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+        }
+        ctx.stroke();
+
+        // Head at the top (the start), tail tapering into the lower square.
+        ctx.fillStyle = PAINT.snake;
+        ctx.beginPath();
+        ctx.arc(from.x, from.y, 11, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1a1c20';
+        [-4, 4].forEach(function (off) {
+            ctx.beginPath();
+            ctx.arc(from.x + px * off - ux * 2, from.y + py * off - uy * 2, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    }
+
+    function drawBoardImage() {
+        var last = state.finalSquare;
+        var perRow = Math.max(2, Math.min(20, state.perRow || 10));
+        if (!Number.isInteger(last) || last < 2 || last > MAX_FINAL_SQUARE) {
+            alert('Set a final square between 2 and ' + MAX_FINAL_SQUARE + ' first.');
+            return Promise.resolve(null);
+        }
+        var rows = Math.ceil(last / perRow);
+        var width = PAD * 2 + perRow * CELL + (perRow - 1) * GAP;
+        var height = HEADER + rows * CELL + (rows - 1) * GAP + PAD + FOOTER;
+
+        // Collect the icons first — canvas drawing cannot wait on a half-loaded image.
+        var needed = {};
+        Object.keys(state.squares).forEach(function (key) {
+            var id = iconIdFor(state.squares[key]);
+            if (id) needed[id] = true;
+        });
+        var ids = Object.keys(needed);
+
+        return Promise.all(ids.map(loadIcon)).then(function (loaded) {
+            var icons = {};
+            ids.forEach(function (id, i) { icons[id] = loaded[i]; });
+
+            var canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            var ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = PAINT.bg;
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.fillStyle = PAINT.text;
+            ctx.font = 'bold 30px "Segoe UI", Roboto, Arial, sans-serif';
+            ctx.textBaseline = 'alphabetic';
+            ctx.textAlign = 'left';
+            ctx.fillText(state.name.trim() || 'Snakes & Ladders', PAD, 46);
+
+            ctx.font = '16px "Segoe UI", Roboto, Arial, sans-serif';
+            ctx.fillStyle = PAINT.muted;
+            ctx.textAlign = 'right';
+            ctx.fillText(last + ' squares · first to the end wins', width - PAD, 46);
+
+            // Three passes: tile backgrounds, then the snakes and ladders across them,
+            // then the icons and names — so a ladder passes behind the text it crosses
+            // instead of burying it.
+            var n;
+            for (n = 1; n <= last; n++) {
+                var p = tileXY(n, perRow, rows);
+                var mv = moveAt(n);
+                var sq = squareAt(n);
+                var isFinal = n === last;
+
+                ctx.fillStyle = isFinal ? '#2c2338' : PAINT.tile;
+                roundRect(ctx, p.x, p.y, CELL, CELL, 10);
+                ctx.fill();
+                ctx.strokeStyle = isFinal ? PAINT.final
+                    : mv ? (mv.kind === 'ladder' ? PAINT.ladder : PAINT.snake)
+                    : sq ? PAINT.item : PAINT.tileLine;
+                ctx.lineWidth = isFinal || mv || sq ? 2 : 1;
+                roundRect(ctx, p.x, p.y, CELL, CELL, 10);
+                ctx.stroke();
+            }
+
+            Object.keys(state.moves).forEach(function (key) {
+                var start = parseInt(key, 10);
+                var mv = state.moves[key];
+                if (start < 1 || start > last || mv.end < 1 || mv.end > last) return;
+                var a = tileXY(start, perRow, rows);
+                var b = tileXY(mv.end, perRow, rows);
+                var from = { x: a.x + CELL / 2, y: a.y + CELL / 2 };
+                var to = { x: b.x + CELL / 2, y: b.y + CELL / 2 };
+                if (mv.kind === 'ladder') drawLadder(ctx, from, to); else drawSnake(ctx, from, to);
+            });
+
+            for (n = 1; n <= last; n++) {
+                var tp = tileXY(n, perRow, rows);
+                var tsq = squareAt(n);
+                var tfinal = n === last;
+                var mid = tp.x + CELL / 2;
+
+                ctx.textAlign = 'left';
+                ctx.fillStyle = PAINT.muted;
+                ctx.font = '14px "Segoe UI", Roboto, Arial, sans-serif';
+                ctx.fillText(String(n), tp.x + 9, tp.y + 22);
+
+                ctx.textAlign = 'center';
+                if (tfinal) {
+                    ctx.fillStyle = PAINT.final;
+                    ctx.font = 'bold 20px "Segoe UI", Roboto, Arial, sans-serif';
+                    ctx.fillText('FINISH', mid, tp.y + CELL / 2 + 7);
+                } else if (tsq) {
+                    var iconId = iconIdFor(tsq);
+                    var img = iconId ? icons[iconId] : null;
+                    if (img) ctx.drawImage(img, mid - 22, tp.y + 28, 44, 44);
+
+                    var caption = tsq.label
+                        || (tsq.items.length > 1 ? tsq.items.length + ' options'
+                            : (tsq.items.length ? (tsq.items[0].name || tsq.items[0].ref) : '—'));
+                    if (tsq.items.length && tsq.quantity > 1) caption = tsq.quantity + '× ' + caption;
+
+                    ctx.font = '13px "Segoe UI", Roboto, Arial, sans-serif';
+                    var lines = wrapText(ctx, caption, CELL - 16, 2);
+                    var top = img ? tp.y + 88 : tp.y + CELL / 2 - (lines.length - 1) * 7;
+
+                    // A plate behind the caption keeps it readable where a snake or
+                    // ladder runs across the square.
+                    var plateW = 0;
+                    lines.forEach(function (lineText) { plateW = Math.max(plateW, ctx.measureText(lineText).width); });
+                    ctx.fillStyle = 'rgba(37, 41, 48, 0.82)';
+                    roundRect(ctx, mid - plateW / 2 - 4, top - 12, plateW + 8, lines.length * 15 + 4, 4);
+                    ctx.fill();
+
+                    ctx.fillStyle = PAINT.text;
+                    lines.forEach(function (lineText, li) {
+                        ctx.fillText(lineText, mid, top + li * 15);
+                    });
+                }
+            }
+
+            // Legend.
+            var fy = height - FOOTER / 2 - 2;
+            ctx.textAlign = 'left';
+            ctx.font = '15px "Segoe UI", Roboto, Arial, sans-serif';
+            var legend = [
+                [PAINT.ladder, 'Ladder — climb up'],
+                [PAINT.snake, 'Snake — slide down'],
+                [PAINT.item, 'Needs a drop']
+            ];
+            var lx = PAD;
+            legend.forEach(function (entry) {
+                ctx.fillStyle = entry[0];
+                roundRect(ctx, lx, fy - 10, 12, 12, 3);
+                ctx.fill();
+                ctx.fillStyle = PAINT.muted;
+                ctx.fillText(entry[1], lx + 20, fy);
+                lx += 32 + ctx.measureText(entry[1]).width;
+            });
+
+            return canvas;
+        });
+    }
+
+    function downloadImage() {
+        $('apiStatus').textContent = 'Drawing the board…';
+        drawBoardImage().then(function (canvas) {
+            if (!canvas) { $('apiStatus').textContent = ''; return; }
+            var slug = (state.name.trim() || 'snl-board').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            canvas.toBlob(function (blob) {
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = (slug || 'snl-board') + '.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+                $('apiStatus').textContent = 'Board picture saved (' + canvas.width + '×' + canvas.height + ')';
+            }, 'image/png');
+        }).catch(function (err) {
+            $('apiStatus').innerHTML = '<span class="err">Could not draw the board: ' + esc(err.message) + '</span>';
+        });
+    }
+
+    // ---- top-level controls -------------------------------------------------
+    $('boardName').addEventListener('input', function () { state.name = this.value; save(); });
+    $('finalSquare').addEventListener('input', function () {
+        var v = parseInt(this.value, 10);
+        state.finalSquare = Number.isInteger(v) ? v : 0;
+        if (selected !== null && selected > state.finalSquare) selected = null;
+        save();
+        render();
+    });
+    $('overshoot').addEventListener('change', function () { state.overshoot = this.value; save(); render(); });
+    $('perRow').addEventListener('input', function () {
+        var v = parseInt(this.value, 10);
+        state.perRow = Number.isInteger(v) ? v : 10;
+        save();
+        renderBoard(validate().badSquares);
+    });
+
+    $('btnDownload').addEventListener('click', download);
+    $('btnImage').addEventListener('click', downloadImage);
+    $('btnCopy').addEventListener('click', function () {
+        var text = boardJson();
+        var done = function () { $('apiStatus').textContent = 'Board JSON copied to the clipboard'; };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done, function () { window.prompt('Copy the board JSON:', text); });
+        } else {
+            window.prompt('Copy the board JSON:', text);
+        }
+    });
+    $('btnCustom').addEventListener('click', function () { $('customInput').click(); });
+    $('customInput').addEventListener('change', function () {
+        var file = this.files && this.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function () { loadCustomItems(String(reader.result)); };
+        reader.readAsText(file);
+        this.value = '';
+    });
+    $('btnLoad').addEventListener('click', function () { $('fileInput').click(); });
+    $('fileInput').addEventListener('change', function () {
+        var file = this.files && this.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function () { importBoard(String(reader.result)); };
+        reader.readAsText(file);
+        this.value = '';
+    });
+    $('btnReset').addEventListener('click', function () {
+        if (!confirm('Clear this board and start again? This cannot be undone.')) return;
+        state.name = '';
+        state.finalSquare = 30;
+        state.overshoot = 'win';
+        state.perRow = 10;
+        state.squares = {};
+        state.moves = {};
+        selected = null;
+        syncInputs();
+        save();
+        render();
+    });
+
+    restore();
+    nameCustomRefs();
+    syncInputs();
+    showCustomStatus();
+    render();
+    loadItems();
+})();
+</script>
+</body>
+</html>

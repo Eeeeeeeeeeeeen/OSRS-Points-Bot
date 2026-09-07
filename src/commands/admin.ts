@@ -10,6 +10,7 @@ import {
     MessageFlags,
     TextChannel,
     ChannelType,
+    AttachmentBuilder,
 } from 'discord.js';
 import { Command } from '../types/command';
 import { getUserById, setUserPoints, adjustUserPoints, upsertUser } from '../database/queries/users';
@@ -788,12 +789,12 @@ export async function handleListCustomItems(interaction: ChatInputCommandInterac
 
     if (pets.length > 0) {
         const defaultStr = petDefault ? `Default: **${petDefault} pts**` : 'No default set — use `/admin setcategorypoints`';
-        const lines = [defaultStr, ...pets.map(i => `• ${i.name} — ${i.points !== null ? `${i.points} pts` : 'uses default'}`)];
+        const lines = [defaultStr, ...pets.map(i => `• ${i.name} — ${i.points !== null ? `${i.points} pts` : 'uses default'} · \`custom:${i.id}\``)];
         addChunkedFields(embed, 'Pets', lines);
     }
 
     if (untradeables.length > 0) {
-        const lines = untradeables.map(i => `• ${i.name} — ${i.points !== null ? `${i.points} pts` : 'no pts set'}`);
+        const lines = untradeables.map(i => `• ${i.name} — ${i.points !== null ? `${i.points} pts` : 'no pts set'} · \`custom:${i.id}\``);
         addChunkedFields(embed, 'Untradeables', lines);
     }
 
@@ -803,7 +804,7 @@ export async function handleListCustomItems(interaction: ChatInputCommandInterac
         for (const p of parts) {
             const key = p.parent_name ?? 'Unknown';
             if (!grouped.has(key)) grouped.set(key, { ref: p.parent_ref!, names: [] });
-            grouped.get(key)!.names.push(p.name);
+            grouped.get(key)!.names.push(`${p.name} · \`custom:${p.id}\``);
         }
         for (const [parentDisplayName, { ref, names }] of grouped) {
             let parentPts: number | null = null;
@@ -827,11 +828,24 @@ export async function handleListCustomItems(interaction: ChatInputCommandInterac
     }
 
     if (other.length > 0) {
-        const lines = other.map(i => `• ${i.name} — ${i.points !== null ? `${i.points} pts` : 'no pts set'}`);
+        const lines = other.map(i => `• ${i.name} — ${i.points !== null ? `${i.points} pts` : 'no pts set'} · \`custom:${i.id}\``);
         addChunkedFields(embed, 'Other', lines);
     }
 
-    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    // Machine-readable copy, so the Snakes & Ladders board builder can search custom
+    // items by name instead of the organiser hunting for IDs.
+    const exportFile = new AttachmentBuilder(
+        Buffer.from(JSON.stringify(items.map(i => ({
+            ref: `custom:${i.id}`,
+            name: i.name,
+            category: i.category,
+            points: i.points,
+            partOf: i.parent_name,
+        })), null, 2), 'utf8'),
+        { name: 'custom-items.json', description: 'Custom item IDs for the Snakes & Ladders board builder' },
+    );
+
+    await interaction.reply({ embeds: [embed], files: [exportFile], flags: MessageFlags.Ephemeral });
 }
 
 async function handleAddTradeableComponent(interaction: ChatInputCommandInteraction): Promise<void> {

@@ -12,6 +12,13 @@ A Discord bot for managing clan drop submissions and a points-based rank system.
 - `/points` — View your own points, rank progress, and recent drops
 - `/leaderboard` — Paginated clan leaderboard
 - Full suite of `/admin` commands for points, ranks, item overrides, pets, and custom items
+- `/snl` — Snakes & Ladders clan events, with a board built from an uploaded JSON file
+
+### Building a Snakes & Ladders board
+
+Open `tools/snl-board-builder.html` in a web browser (just double-click it) to lay out a board
+visually and download the JSON that `/snl setup` expects — no editing by hand. See
+[`tools/README.md`](tools/README.md).
 
 ---
 
