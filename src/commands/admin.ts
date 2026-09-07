@@ -748,7 +748,11 @@ async function handleSetCategoryPoints(interaction: ChatInputCommandInteraction)
     });
 }
 
-function addChunkedFields(embed: EmbedBuilder, heading: string, lines: string[]): void {
+type EmbedField = { name: string; value: string };
+
+// Discord caps a single field value at 1024 chars, so long sections are split
+// across several fields that share a heading.
+function chunkFields(heading: string, lines: string[]): EmbedField[] {
     const chunks: string[] = [];
     let current = '';
     for (const line of lines) {
@@ -762,22 +766,47 @@ function addChunkedFields(embed: EmbedBuilder, heading: string, lines: string[])
     }
     if (current) chunks.push(current);
 
-    chunks.forEach((chunk, i) => {
-        embed.addFields({ name: i === 0 ? heading : `${heading} (cont.)`, value: chunk });
-    });
+    return chunks.map((chunk, i) => ({ name: i === 0 ? heading : `${heading} (cont.)`, value: chunk }));
+}
+
+// Discord also caps the *combined* size of all embeds on a message at 6000 chars
+// (and 25 fields per embed), so a long list has to be split over several messages.
+const EMBED_CHAR_BUDGET = 5500;
+const EMBED_FIELD_LIMIT = 25;
+
+function paginateEmbeds(title: string, color: number, fields: EmbedField[]): EmbedBuilder[] {
+    const pages: EmbedField[][] = [];
+    let current: EmbedField[] = [];
+    let size = title.length;
+
+    for (const field of fields) {
+        const fieldSize = field.name.length + field.value.length;
+        if (current.length > 0 && (current.length >= EMBED_FIELD_LIMIT || size + fieldSize > EMBED_CHAR_BUDGET)) {
+            pages.push(current);
+            current = [];
+            size = title.length;
+        }
+        current.push(field);
+        size += fieldSize;
+    }
+    if (current.length > 0) pages.push(current);
+
+    return pages.map((pageFields, i) => new EmbedBuilder()
+        .setTitle(pages.length > 1 ? `${title} (${i + 1}/${pages.length})` : title)
+        .setColor(color)
+        .addFields(pageFields));
 }
 
 export async function handleListCustomItems(interaction: ChatInputCommandInteraction): Promise<void> {
     const items = getAllCustomItems();
 
-    const embed = new EmbedBuilder()
-        .setTitle('Custom Items')
-        .setColor(0x00AAFF)
-        .setTimestamp();
-
     if (items.length === 0) {
-        embed.setDescription('No custom items added yet. Use `/admin addcustomitem` to add untradeables.');
-        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+        const empty = new EmbedBuilder()
+            .setTitle('Custom Items')
+            .setColor(0x00AAFF)
+            .setTimestamp()
+            .setDescription('No custom items added yet. Use `/admin addcustomitem` to add untradeables.');
+        await interaction.reply({ embeds: [empty], flags: MessageFlags.Ephemeral });
         return;
     }
 
@@ -787,15 +816,17 @@ export async function handleListCustomItems(interaction: ChatInputCommandInterac
     const other = items.filter(i => !i.category && i.parent_ref === null);
     const parts = items.filter(i => i.parent_ref !== null);
 
+    const fields: EmbedField[] = [];
+
     if (pets.length > 0) {
         const defaultStr = petDefault ? `Default: **${petDefault} pts**` : 'No default set — use `/admin setcategorypoints`';
         const lines = [defaultStr, ...pets.map(i => `• ${i.name} — ${i.points !== null ? `${i.points} pts` : 'uses default'} · \`custom:${i.id}\``)];
-        addChunkedFields(embed, 'Pets', lines);
+        fields.push(...chunkFields('Pets', lines));
     }
 
     if (untradeables.length > 0) {
         const lines = untradeables.map(i => `• ${i.name} — ${i.points !== null ? `${i.points} pts` : 'no pts set'} · \`custom:${i.id}\``);
-        addChunkedFields(embed, 'Untradeables', lines);
+        fields.push(...chunkFields('Untradeables', lines));
     }
 
     if (parts.length > 0) {
@@ -823,14 +854,17 @@ export async function handleListCustomItems(interaction: ChatInputCommandInterac
                 ...names.map(n => `• ${n}`),
                 ...tradeableComponents.map(tc => `• ${tc.ge_item_name} [tradeable GE component]`),
             ];
-            addChunkedFields(embed, heading, lines);
+            fields.push(...chunkFields(heading.slice(0, 256), lines));
         }
     }
 
     if (other.length > 0) {
         const lines = other.map(i => `• ${i.name} — ${i.points !== null ? `${i.points} pts` : 'no pts set'} · \`custom:${i.id}\``);
-        addChunkedFields(embed, 'Other', lines);
+        fields.push(...chunkFields('Other', lines));
     }
+
+    const embeds = paginateEmbeds('Custom Items', 0x00AAFF, fields);
+    embeds[embeds.length - 1].setTimestamp();
 
     // Machine-readable copy, so the Snakes & Ladders board builder can search custom
     // items by name instead of the organiser hunting for IDs.
@@ -845,7 +879,18 @@ export async function handleListCustomItems(interaction: ChatInputCommandInterac
         { name: 'custom-items.json', description: 'Custom item IDs for the Snakes & Ladders board builder' },
     );
 
-    await interaction.reply({ embeds: [embed], files: [exportFile], flags: MessageFlags.Ephemeral });
+    // One embed per message keeps every message under Discord's 6000-char cap;
+    // the JSON export rides along with the last one.
+    for (const [i, embed] of embeds.entries()) {
+        const isLast = i === embeds.length - 1;
+        const payload = {
+            embeds: [embed],
+            ...(isLast ? { files: [exportFile] } : {}),
+            flags: MessageFlags.Ephemeral as const,
+        };
+        if (i === 0) await interaction.reply(payload);
+        else await interaction.followUp(payload);
+    }
 }
 
 async function handleAddTradeableComponent(interaction: ChatInputCommandInteraction): Promise<void> {
