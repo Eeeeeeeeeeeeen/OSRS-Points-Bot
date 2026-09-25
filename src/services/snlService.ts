@@ -14,6 +14,7 @@ import {
     countProgress,
     hasProgressForDrop,
     deleteProgressByDrop,
+    deleteProgressForSquare,
 } from '../database/queries/snl';
 import { getCustomItem } from '../database/queries/customItems';
 import { loadBoard, squareRequirement, transitionFor } from './snlBoard';
@@ -110,6 +111,9 @@ export async function rollAndAdvance(
             });
         }
         setTeamPosition(team.id, finalPosition, now);
+        // Landing on a square always starts its requirement fresh, even if the team has
+        // stood here before (a snake back down, or a bounce off the final square).
+        deleteProgressForSquare(team.id, finalPosition);
         if (won) {
             setTeamFinished(team.id, now);
             endGame(game.id, 'finished', team.id);
@@ -148,6 +152,7 @@ export async function forceMove(
             transitionId: null,
         });
         setTeamPosition(team.id, square, now);
+        deleteProgressForSquare(team.id, square);
         if (won) {
             setTeamFinished(team.id, now);
             endGame(game.id, 'finished', team.id);

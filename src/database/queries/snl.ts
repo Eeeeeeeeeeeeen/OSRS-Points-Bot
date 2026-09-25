@@ -115,6 +115,12 @@ export function getProgressForSquare(teamId: number, square: number): SnlProgres
     ).all(teamId, square) as SnlProgressRow[];
 }
 
+// Wipes a team's credited drops for one square. Called whenever the team lands on a
+// square so a revisit (snake, bounce or admin move) starts the requirement from zero.
+export function deleteProgressForSquare(teamId: number, square: number): void {
+    getDb().prepare('DELETE FROM snl_progress WHERE team_id = ? AND square = ?').run(teamId, square);
+}
+
 export function deleteProgressByDrop(dropId: number): void {
     getDb().prepare('DELETE FROM snl_progress WHERE drop_id = ?').run(dropId);
 }
